@@ -70,11 +70,20 @@ class AuditLog(models.Model):
         return f"AuditLog({self.action} - {self.resource_type}:{self.resource_id})"
 
     def save(self, *args, **kwargs):
-        """Prevent updates to existing audit log entries (append-only)."""
-        if self.pk:
-            raise RuntimeError(
-                "AuditLog entries are immutable. Cannot update existing records."
-            )
+        """Prevent updates to existing audit log entries (append-only).
+
+        AuditLog uses force_insert=True on create (via QuerySet.create()),
+        so self.pk may be set even for new rows. Only block saves when
+        the row already exists in the database.
+        """
+        if self.pk and not kwargs.get("force_insert"):
+            try:
+                AuditLog.objects.get(pk=self.pk)
+                raise RuntimeError(
+                    "AuditLog entries are immutable. Cannot update existing records."
+                )
+            except AuditLog.DoesNotExist:
+                pass  # New object with explicit pk — allow create
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

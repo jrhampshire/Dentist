@@ -45,7 +45,9 @@ class TestAdjustStock:
         clinic = create_clinic()
         item = create_inventory_item(clinic=clinic, stock_current=Decimal("100.00"))
 
-        movement = adjust_stock(item, Decimal("-30.00"), note="Salida")
+        movement = adjust_stock(
+            item, Decimal("-30.00"), movement_type="out", note="Salida"
+        )
 
         item.refresh_from_db()
         assert item.stock_current == Decimal("70.00")
