@@ -257,6 +257,8 @@ def create_schedule_slot(db, create_clinic):
 def create_inventory_item(db, create_clinic):
     """Create an InventoryItem instance."""
 
+    from datetime import date
+
     def _create(
         clinic=None,
         name="Guantes de látex",
@@ -266,7 +268,14 @@ def create_inventory_item(db, create_clinic):
         stock_maximum=Decimal("500.00"),
         unit="caja",
         unit_price=Decimal("50.00"),
+        cost=Decimal("0.00"),
+        price=Decimal("0.00"),
         is_active=True,
+        is_blocked=False,
+        expiration_date=None,
+        batch_number="",
+        barcode="",
+        supplier="",
     ):
         from inventory.models import InventoryItem
 
@@ -282,7 +291,14 @@ def create_inventory_item(db, create_clinic):
             stock_maximum=stock_maximum,
             unit=unit,
             unit_price=unit_price,
+            cost=cost,
+            price=price,
             is_active=is_active,
+            is_blocked=is_blocked,
+            expiration_date=expiration_date,
+            batch_number=batch_number,
+            barcode=barcode,
+            supplier=supplier,
         )
 
     return _create
@@ -303,6 +319,12 @@ def create_invoice(db, create_clinic, create_patient):
         iva=Decimal("160.00"),
         total=Decimal("1160.00"),
         concepts=None,
+        cfdi_uuid="",
+        cfdi_sat_certificate="",
+        cfdi_stamp_date=None,
+        xml_url="",
+        pdf_url="",
+        error_message="",
     ):
         from invoicing.models import Invoice
 
@@ -321,11 +343,19 @@ def create_invoice(db, create_clinic, create_patient):
             metodo_pago="PUE",
             forma_pago="01",
             moneda="MXN",
+            status=status,
+            cfdi_uuid=cfdi_uuid,
+            cfdi_sat_certificate=cfdi_sat_certificate,
+            cfdi_stamp_date=cfdi_stamp_date,
+            xml_url=xml_url,
+            pdf_url=pdf_url,
+            error_message=error_message,
             subtotal=subtotal,
             iva=iva,
             total=total,
             concepts=concepts
-            or [
+            if concepts is not None
+            else [
                 {
                     "clave_sat": "84111506",
                     "descripcion": "Consulta dental",
