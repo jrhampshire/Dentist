@@ -1,0 +1,30 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in build context)
+docs/
+*.md
+LICENSE
+
+# Git
+.git/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+
+# Node
+node_modules/
+
+# Docker
+.dockerignore

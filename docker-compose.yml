@@ -1,0 +1,233 @@
+# =============================================================================
+# ClínicaSaaS Dental MX — Docker Compose
+# =============================================================================
+# Services: PostgreSQL, Redis, Django, Celery Worker, Celery Beat, Nginx, Frontend Dev
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose up -d django   # Start only Django + dependencies
+#   docker compose logs -f django # Follow Django logs
+#   docker compose down           # Stop all services
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 — Primary database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: dentist-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clinica_dental
+      POSTGRES_USER: dentist
+      POSTGRES_PASSWORD: dentist
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentist -d clinica_dental"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis — Celery broker + cache backend
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: dentist-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Django — Backend API (Gunicorn)
+  # ---------------------------------------------------------------------------
+  django:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dentist-django
+    restart: unless-stopped
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.docker
+      POSTGRES_DB: clinica_dental
+      POSTGRES_USER: dentist
+      POSTGRES_PASSWORD: dentist
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-to-a-long-random-string}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-change-me-to-a-different-long-random-string}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER:-whatsapp:+14155238886}
+      FINKOK_USERNAME: ${FINKOK_USERNAME:-}
+      FINKOK_PASSWORD: ${FINKOK_PASSWORD:-}
+      FINKOK_SANDBOX: ${FINKOK_SANDBOX:-true}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8001,http://localhost:80,http://localhost
+      PRODUCTION_ALLOWED_HOSTS: localhost,127.0.0.1,django,nginx
+    ports:
+      - "8001:8000"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        python manage.py migrate --noinput &&
+        python manage.py collectstatic --noinput &&
+        gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+      "
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker — Async task processor
+  # ---------------------------------------------------------------------------
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dentist-celery-worker
+    restart: unless-stopped
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.docker
+      POSTGRES_DB: clinica_dental
+      POSTGRES_USER: dentist
+      POSTGRES_PASSWORD: dentist
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-to-a-long-random-string}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-change-me-to-a-different-long-random-string}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER:-whatsapp:+14155238886}
+      FINKOK_USERNAME: ${FINKOK_USERNAME:-}
+      FINKOK_PASSWORD: ${FINKOK_PASSWORD:-}
+      FINKOK_SANDBOX: ${FINKOK_SANDBOX:-true}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      django:
+        condition: service_started
+    command: celery -A config worker --loglevel=info --concurrency=4
+
+  # ---------------------------------------------------------------------------
+  # Celery Beat — Periodic task scheduler
+  # ---------------------------------------------------------------------------
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dentist-celery-beat
+    restart: unless-stopped
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.docker
+      POSTGRES_DB: clinica_dental
+      POSTGRES_USER: dentist
+      POSTGRES_PASSWORD: dentist
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-to-a-long-random-string}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-change-me-to-a-different-long-random-string}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER:-whatsapp:+14155238886}
+      FINKOK_USERNAME: ${FINKOK_USERNAME:-}
+      FINKOK_PASSWORD: ${FINKOK_PASSWORD:-}
+      FINKOK_SANDBOX: ${FINKOK_SANDBOX:-true}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      django:
+        condition: service_started
+    command: celery -A config beat --loglevel=info
+
+  # ---------------------------------------------------------------------------
+  # Nginx — Reverse proxy + TLS termination + static file serving
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: dentist-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+    depends_on:
+      - django
+
+  # ---------------------------------------------------------------------------
+  # Frontend Dev — Vite HMR (development only)
+  # ---------------------------------------------------------------------------
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: dentist-frontend-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+      VITE_WS_URL: ws://localhost:8000/ws
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app:rw
+      - /app/node_modules
+    depends_on:
+      - django
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  static_volume:
+    driver: local
+  media_volume:
+    driver: local

@@ -1,0 +1,43 @@
+# =============================================================================
+# ClínicaSaaS Dental MX — Python Dependencies
+# =============================================================================
+
+# Core
+Django>=5.0,<5.1
+djangorestframework>=3.14,<4.0
+django-cors-headers>=4.3,<5.0
+django-filter>=23.5,<24.0
+psycopg2-binary>=2.9,<3.0
+python-decouple>=3.8,<4.0
+
+# JWT Authentication
+PyJWT>=2.8,<3.0
+
+# OAuth2
+requests>=2.31,<3.0
+google-auth>=2.25,<3.0
+
+# Async / Task Queue
+celery[redis]>=5.3,<6.0
+redis>=5.0,<6.0
+
+# WSGI Server (Production)
+gunicorn>=21.2,<22.0
+
+# Static files
+whitenoise>=6.6,<7.0
+
+# Logging
+python-json-logger>=2.0,<3.0
+
+# Encryption (NOM-024)
+cryptography>=41.0,<42.0
+
+# Production monitoring (optional)
+# sentry-sdk[django,celery]>=1.39,<2.0
+
+# Testing
+pytest-django>=4.7,<5.0
+pytest-cov>=4.1,<5.0
+factory-boy>=3.3,<4.0
+responses>=0.24,<1.0

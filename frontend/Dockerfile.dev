@@ -1,0 +1,24 @@
+# =============================================================================
+# ClínicaSaaS Dental MX — Frontend Dockerfile (Development)
+# =============================================================================
+# Used by docker-compose for Vite HMR with volume mounting
+# =============================================================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm ci --frozen-lockfile
+
+# Copy the rest of the source code
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 3000
+
+# Default command is overridden in docker-compose
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]

@@ -1,0 +1,46 @@
+# Local Pi runtime state
+.atl/
+.pi/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+*.sqlite3
+
+# Django
+staticfiles/
+media/
+*.mo
+
+# Node
+node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Ruff
+.ruff_cache/
