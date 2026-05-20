@@ -18,7 +18,7 @@ from appointments.services.slot_service import (
 )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestCheckConflict:
     """Test the conflict detection function."""
@@ -188,7 +188,7 @@ class TestCheckConflict:
         assert has_conflict is False
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestGenerateSlotsFromSchedule:
     """Test schedule slot generation."""
@@ -289,7 +289,7 @@ class TestGenerateSlotsFromSchedule:
         assert slots == []  # Not yet valid
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestFindAvailableSlots:
     """Test the combined available slots function."""

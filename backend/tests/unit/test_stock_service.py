@@ -24,7 +24,7 @@ from inventory.services.stock_service import (
 )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestAdjustStock:
     """Test stock adjustment."""
@@ -107,7 +107,7 @@ class TestAdjustStock:
         assert movement.reference_id == "PO-001"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestConsumeKit:
     """Test kit consumption."""
@@ -178,7 +178,7 @@ class TestConsumeKit:
             consume_kit(clinic_id=str(clinic.pk), kit=kit, appointment_id="appt-001")
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestLowStockDetection:
     """Test low stock alerts."""
@@ -214,7 +214,7 @@ class TestLowStockDetection:
         assert get_low_stock_items(str(clinic.pk)).count() == 0
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestExpirationDetection:
     """Test expiration alerts."""
@@ -263,7 +263,7 @@ class TestExpirationDetection:
         assert get_expired_items(str(clinic.pk)).count() == 0
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestMarkExpiredItems:
     """Test marking expired items."""

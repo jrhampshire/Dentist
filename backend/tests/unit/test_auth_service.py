@@ -18,7 +18,7 @@ from django.utils import timezone
 from accounts.services.auth_service import AuthService
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestAuthServiceAuthenticate:
     """Test the authenticate method."""
@@ -74,7 +74,7 @@ class TestAuthServiceAuthenticate:
         assert user.is_locked() is True
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestAuthServiceGenerateTokens:
     """Test token generation."""
@@ -108,7 +108,7 @@ class TestAuthServiceGenerateTokens:
         assert db_token.revoked is False
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestAuthServiceRefreshToken:
     """Test token refresh/rotation."""
@@ -162,7 +162,7 @@ class TestAuthServiceRefreshToken:
             AuthService.refresh_access_token(tokens["refresh_token"])
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestAuthServiceRevokeToken:
     """Test token revocation (logout)."""
@@ -185,7 +185,7 @@ class TestAuthServiceRevokeToken:
         assert count == 2
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.django_db
 class TestAuthServiceValidateToken:
     """Test access token validation."""
