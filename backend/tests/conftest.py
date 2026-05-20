@@ -364,6 +364,99 @@ def create_fiscal_config(db, create_clinic):
 
 
 # ---------------------------------------------------------------------------
+# OAuth / Auth test helpers
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mocked_google_oauth_response():
+    """Mock requests.Response for Google OAuth2 token exchange success."""
+    from unittest.mock import Mock
+
+    import requests
+
+    mock_resp = Mock(spec=requests.Response)
+    mock_resp.json.return_value = {
+        "access_token": "mock_access_token",
+        "id_token": "mock_id_token",
+        "expires_in": 3600,
+    }
+    mock_resp.ok = True
+    mock_resp.raise_for_status.return_value = None
+    return mock_resp
+
+
+@pytest.fixture
+def mocked_google_verify_id_token():
+    """Patch google.oauth2.id_token.verify_oauth2_token to return test claims."""
+    from unittest.mock import patch
+
+    mock_verify = patch(
+        "accounts.services.oauth_service.google_id_token.verify_oauth2_token",
+        return_value={
+            "email": "user@gmail.com",
+            "name": "Google User",
+            "sub": "12345",
+            "email_verified": True,
+        },
+    )
+    mock_verify.start()
+    yield mock_verify
+    mock_verify.stop()
+
+
+@pytest.fixture
+def sample_invoice_data():
+    """Return a minimal invoice dict for testing (no DB required)."""
+    from decimal import Decimal
+
+    return {
+        "folio": "F-001",
+        "rfc_receptor": "XAXX010101000",
+        "nombre_receptor": "Público General",
+        "subtotal": Decimal("1000.00"),
+        "iva": Decimal("160.00"),
+        "total": Decimal("1160.00"),
+        "concepts": [
+            {
+                "clave_sat": "84111506",
+                "descripcion": "Consulta dental",
+                "cantidad": 1,
+                "valor_unitario": Decimal("1000.00"),
+                "importe": Decimal("1000.00"),
+                "iva_rate": Decimal("0.16"),
+            }
+        ],
+        "clinic_name": "Test Clinic",
+        "fiscal_config": {
+            "rfc": "XAXX010101000",
+            "razon_social": "Test Clinic SA de CV",
+        },
+    }
+
+
+@pytest.fixture
+def mock_jwt_payload():
+    """Build a JWT payload dict with optional overrides."""
+
+    def _make(user_id="user-001", clinic_id="clinic-001", role="admin"):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        return {
+            "user_id": user_id,
+            "clinic_id": clinic_id,
+            "role": role,
+            "exp": now + timedelta(hours=1),
+            "iat": now,
+        }
+
+    return _make
+
+
+# ---------------------------------------------------------------------------
 # Encryption key fixture
 # ---------------------------------------------------------------------------
 
