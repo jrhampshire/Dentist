@@ -5,6 +5,7 @@ ViewSets:
 - PatientViewSet: CRUD + search for patients
 - ClinicalNoteViewSet: CRUD + sign action for clinical notes (nested under patients)
 - PatientConsentViewSet: CRUD for consent records (nested under patients)
+- AuditTrailViewSet: Read-only audit log entries (NOM-024 compliance)
 
 All views enforce tenant isolation via RLS (clinic_id from JWT).
 """
@@ -12,14 +13,16 @@ All views enforce tenant isolation via RLS (clinic_id from JWT).
 from typing import Any
 
 from django.db import transaction
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import mixins, status, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from core.models import AuditLog
 from core.permissions import IsClinicAdmin, IsDentist
 from patients.filters import (
     ClinicalNoteFilter,
@@ -115,6 +118,118 @@ class PatientViewSet(viewsets.ModelViewSet):
 
         serializer = PatientListSerializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="export")
+    def export_patient_data(self, request, pk=None):
+        """
+        Export complete patient record for NOM-024 data portability.
+
+        Returns JSON with patient info, clinical notes, consents,
+        appointments, and invoices.
+
+        Permission: IsClinicAdmin or IsOwnerOrAdmin.
+        """
+        patient = self.get_object()
+
+        # Permission check
+        user_role = getattr(request, "user_role", None)
+        user_id = str(request.user.pk) if request.user else None
+
+        if user_role != "admin":
+            # Dentists and receptionists can export their own patients
+            if str(patient.created_by_id) != user_id:
+                raise PermissionDenied(
+                    "Solo el administrador o el creador del expediente puede exportarlo."
+                )
+
+        # --- Patient data ---
+        patient_data = PatientSerializer(patient, context={"request": request}).data
+
+        # --- Clinical notes ---
+        notes_qs = ClinicalNote.objects.filter(patient=patient).select_related("author")
+        notes_data = []
+        for note in notes_qs:
+            note_dict = ClinicalNoteSerializer(note, context={"request": request}).data
+            notes_data.append(note_dict)
+
+        # --- Consents ---
+        consents_qs = PatientConsent.objects.filter(patient=patient).select_related(
+            "signed_by"
+        )
+        consents_data = []
+        for consent in consents_qs:
+            consent_dict = PatientConsentSerializer(
+                consent, context={"request": request}
+            ).data
+            consents_data.append(consent_dict)
+
+        # --- Appointments ---
+        from appointments.models import Appointment
+
+        appointments_qs = (
+            Appointment.objects.filter(patient=patient)
+            .select_related("appointment_type", "dentist")
+            .order_by("-date", "-start_time")
+        )
+        appointments_data = []
+        for appt in appointments_qs:
+            appointments_data.append(
+                {
+                    "id": str(appt.id),
+                    "date": str(appt.date),
+                    "start_time": str(appt.start_time),
+                    "end_time": str(appt.end_time),
+                    "type": appt.appointment_type.name
+                    if appt.appointment_type
+                    else None,
+                    "dentist": appt.dentist.get_full_name() if appt.dentist else None,
+                    "status": appt.status,
+                    "status_display": appt.get_status_display(),
+                }
+            )
+
+        # --- Invoices ---
+        from invoicing.models import Invoice
+
+        invoices_qs = (
+            Invoice.objects.filter(patient=patient)
+            .select_related("appointment")
+            .order_by("-created_at")
+        )
+        invoices_data = []
+        for inv in invoices_qs:
+            invoices_data.append(
+                {
+                    "id": str(inv.id),
+                    "folio": inv.folio,
+                    "total": str(inv.total),
+                    "status": inv.status,
+                    "status_display": inv.get_status_display(),
+                    "created_at": str(inv.created_at),
+                    "stamped_at": str(inv.cfdi_stamp_date)
+                    if hasattr(inv, "cfdi_stamp_date") and inv.cfdi_stamp_date
+                    else None,
+                }
+            )
+
+        # --- Build response ---
+        export_data = {
+            "expediente": {
+                "patient": patient_data,
+                "clinical_notes": notes_data,
+                "consents": consents_data,
+                "appointments": appointments_data,
+                "invoices": invoices_data,
+            },
+            "exported_at": timezone.now().isoformat(),
+            "exported_by": user_id,
+            "retention_policy": "NOM-024 — 5 años",
+        }
+
+        filename = f"expediente_{pk}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+        response = Response(export_data, status=status.HTTP_200_OK)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
     def create(self, request, *args, **kwargs):
         """Create patient with duplicate phone check."""
@@ -325,3 +440,73 @@ class PatientConsentViewSet(
 
         serializer = PatientConsentSerializer(consent)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# AuditTrailViewSet — NOM-024 compliance
+# ---------------------------------------------------------------------------
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """Serializer for AuditLog entries — read-only."""
+
+    user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            "id",
+            "action",
+            "resource_type",
+            "resource_id",
+            "user",
+            "user_name",
+            "details",
+            "result",
+            "ip_address",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_user_name(self, obj: AuditLog) -> str | None:
+        """Return the user's full name or email for display."""
+        if obj.user:
+            return obj.user.get_full_name() or obj.user.email
+        return None
+
+
+class AuditTrailViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    """
+    Read-only audit trail for NOM-024 compliance.
+
+    Endpoints:
+    - GET /audit-trail/                       — list all audit entries
+    - GET /audit-trail/?resource_type=X       — filter by resource type
+    - GET /audit-trail/?resource_type=X&resource_id=Y — filter by resource
+    - GET /audit-trail/{id}/                  — get single audit entry detail
+
+    All entries are ordered by -created_at (most recent first).
+    Uses cursor-based pagination (default: 20 per page).
+
+    Permission: authenticated users only.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = AuditLogSerializer
+
+    def get_queryset(self):
+        """Return audit log entries filtered by query params."""
+        qs = AuditLog.objects.select_related("user").order_by("-created_at")
+        resource_type = self.request.query_params.get("resource_type")
+        resource_id = self.request.query_params.get("resource_id")
+
+        if resource_type:
+            qs = qs.filter(resource_type=resource_type)
+        if resource_id:
+            qs = qs.filter(resource_id=resource_id)
+
+        return qs
