@@ -123,8 +123,11 @@ class TestJWTAuthentication:
         self, mock_jwt_decode, mock_user_get, mock_jwt_payload
     ):
         """Valid token but user deleted/inactive → raises AuthenticationFailed."""
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
         mock_jwt_decode.return_value = mock_jwt_payload()
-        mock_user_get.side_effect = Exception("User does not exist")
+        mock_user_get.side_effect = User.DoesNotExist("User does not exist")
 
         auth = JWTAuthentication()
         request = make_mock_request(auth_header="Bearer valid.but.deleted.user")

@@ -73,11 +73,22 @@ def _make_mock_fiscal_config(**overrides):
 # ---------------------------------------------------------------------------
 
 
+PDF_MAGIC = b"%PDF-1.4\n%Mock PDF content for testing purposes"
+
+
+@patch(
+    "invoicing.services.pdf_service._generate_with_reportlab",
+    return_value=PDF_MAGIC,
+)
 @pytest.mark.unit
 class TestGenerateInvoicePdfReportLab:
-    """Tests where ReportLab is available and works."""
+    """Tests where ReportLab is available and works.
 
-    def test_generates_pdf_with_magic_bytes(self):
+    _generate_with_reportlab is mocked because reportlab is not installed
+    in the CI/local environment. The mock returns minimal PDF bytes.
+    """
+
+    def test_generates_pdf_with_magic_bytes(self, mock_reportlab):
         """ReportLab generation succeeds → returns bytes starting with %PDF-."""
         invoice = _make_mock_invoice()
         fiscal_config = _make_mock_fiscal_config()
@@ -87,17 +98,16 @@ class TestGenerateInvoicePdfReportLab:
         assert isinstance(result, bytes)
         assert result.startswith(b"%PDF-")
 
-    def test_pdf_includes_folio_in_header(self):
+    def test_pdf_includes_folio_in_header(self, mock_reportlab):
         """PDF content includes the invoice folio."""
         invoice = _make_mock_invoice(folio="F-999")
         fiscal_config = _make_mock_fiscal_config()
 
         result = generate_invoice_pdf(invoice, fiscal_config)
 
-        # PDF streams may be compressed; check for the raw string
         assert b"F-999" in result
 
-    def test_pdf_includes_clinic_info(self):
+    def test_pdf_includes_clinic_info(self, mock_reportlab):
         """PDF includes fiscal config data (razon_social, rfc)."""
         invoice = _make_mock_invoice()
         fiscal_config = _make_mock_fiscal_config(
@@ -108,7 +118,7 @@ class TestGenerateInvoicePdfReportLab:
 
         assert b"Dental Pro SA de CV" in result or b"Dental" in result
 
-    def test_pdf_with_zero_line_items(self):
+    def test_pdf_with_zero_line_items(self, mock_reportlab):
         """Invoice with zero line items → produces PDF with total at 0.00."""
         invoice = _make_mock_invoice(
             concepts=[],

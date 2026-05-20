@@ -388,11 +388,15 @@ def mocked_google_oauth_response():
 
 @pytest.fixture
 def mocked_google_verify_id_token():
-    """Patch google.oauth2.id_token.verify_oauth2_token to return test claims."""
+    """Patch google.oauth2.id_token.verify_oauth2_token to return test claims.
+
+    The oauth_service imports `from google.oauth2 import id_token as google_id_token`
+    inside verify_id_token(), so we must patch the canonical module path.
+    """
     from unittest.mock import patch
 
     mock_verify = patch(
-        "accounts.services.oauth_service.google_id_token.verify_oauth2_token",
+        "google.oauth2.id_token.verify_oauth2_token",
         return_value={
             "email": "user@gmail.com",
             "name": "Google User",
