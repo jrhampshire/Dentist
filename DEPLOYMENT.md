@@ -442,6 +442,68 @@ tar xzf media_20240115.tar.gz
 
 ---
 
+## Testing
+
+### Ejecutar tests en Docker
+
+El entorno de pruebas usa `config.settings.test` (DJANGO_SETTINGS_MODULE) y pytest con cobertura configurada en `pytest.ini`.
+
+```bash
+# Suite completa (todos los marcadores)
+docker compose run --rm backend pytest
+
+# Solo tests unitarios (rápidos, sin base de datos)
+docker compose run --rm backend pytest -m unit
+
+# Solo tests de integración (requieren base de datos)
+docker compose run --rm backend pytest -m integration
+
+# Tests de contrato (mocks de APIs externas)
+docker compose run --rm backend pytest -m contract
+
+# Tests end-to-end (flujo completo)
+docker compose run --rm backend pytest -m e2e
+```
+
+### Cobertura de código
+
+La configuración en `pytest.ini` incluye `--cov=backend --cov-report=html --cov-report=term-missing`. El umbral mínimo es 75%.
+
+```bash
+# Ejecutar con cobertura (ya incluido por defecto en pytest.ini)
+docker compose run --rm backend pytest --cov --cov-report=html
+
+# Ver reporte HTML
+# Abrir backend/htmlcov/index.html en el navegador
+```
+
+### Ejecutar tests localmente (si Django está instalado)
+
+Si tenés Django y las dependencias instaladas en tu máquina:
+
+```bash
+cd backend
+pytest                  # Suite completa
+pytest -m unit          # Solo unitarios
+./run_tests.sh          # Con --reuse-db (más rápido en iteraciones)
+```
+
+### CI/CD
+
+Los tests se ejecutan automáticamente en GitHub Actions al hacer push o pull request a `main`. El workflow `.github/workflows/ci.yml` levanta un contenedor PostgreSQL, ejecuta migraciones y corre `pytest --cov --cov-fail-under=75`. El reporte `coverage.xml` se sube como artefacto.
+
+### Taxonomía de marcadores
+
+| Marcador | Descripción | ¿DB? |
+|----------|-------------|------|
+| `unit` | Tests unitarios puros (sin DB, sin I/O) | No |
+| `integration` | Tests que interactúan con la base de datos | Sí |
+| `contract` | Tests de APIs externas (mocks) | No |
+| `e2e` | Tests de flujo completo | Sí |
+| `slow` | Tests que tardan más de 1 segundo | Depende |
+
+---
+
 ## 🎉 ¡Listo!
 
 Tu instancia de ClínicaSaaS Dental MX debería estar funcionando en producción.
