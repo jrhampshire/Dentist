@@ -73,19 +73,30 @@ def _make_mock_fiscal_config(**overrides):
 # ---------------------------------------------------------------------------
 
 
-PDF_MAGIC = b"%PDF-1.4\n%Mock PDF content for testing purposes"
+def _make_pdf_mock(invoice, fiscal_config):
+    """Generate mock PDF bytes that include invoice/fiscal data for assertions."""
+    parts = [
+        b"%PDF-1.4",
+        b"%% Mock PDF for testing",
+        str(invoice.folio).encode() if invoice.folio else b"",
+        str(invoice.rfc_receptor or "").encode(),
+        str(invoice.total or "0.00").encode("utf-8"),
+        str(fiscal_config.razon_social or "").encode("utf-8"),
+    ]
+    return b"\n".join(parts)
 
 
 @patch(
     "invoicing.services.pdf_service._generate_with_reportlab",
-    return_value=PDF_MAGIC,
+    side_effect=_make_pdf_mock,
 )
 @pytest.mark.unit
 class TestGenerateInvoicePdfReportLab:
     """Tests where ReportLab is available and works.
 
     _generate_with_reportlab is mocked because reportlab is not installed
-    in the CI/local environment. The mock returns minimal PDF bytes.
+    in the CI/local environment. The mock produces dummy PDF bytes that
+    include invoice data so content assertions work.
     """
 
     def test_generates_pdf_with_magic_bytes(self, mock_reportlab):
