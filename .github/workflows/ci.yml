@@ -2,11 +2,44 @@ name: Test Suite
 
 on:
   push:
-    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
+  unit-tests:
+    if: github.event_name == 'push' && github.ref_name != 'main'
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      POSTGRES_DB: test_db
+      POSTGRES_USER: dentist
+      POSTGRES_PASSWORD: dentist
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: dentist
+          POSTGRES_PASSWORD: dentist
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+        working-directory: backend
+      - run: pytest -m unit -v --no-header -q
+        working-directory: backend
+
   test:
     runs-on: ubuntu-latest
 

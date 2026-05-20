@@ -20,13 +20,13 @@ The system MUST verify JWT signature using the configured secret/key and SHALL r
 
 - GIVEN a JWT with `exp` timestamp in the past
 - WHEN `JWTAuthentication.authenticate(request)` is called
-- THEN the system SHALL return `None` and SHALL NOT set `request.user`
+- THEN the system SHALL raise `AuthenticationFailed` with a descriptive message
 
 #### Scenario: Malformed JWT
 
 - GIVEN a base64-decoded but structurally invalid JWT
 - WHEN `JWTAuthentication.authenticate(request)` is called
-- THEN the system SHALL return `None` and SHALL NOT raise an exception
+- THEN the system SHALL raise `AuthenticationFailed` with a descriptive message
 
 #### Scenario: Missing Authorization header
 

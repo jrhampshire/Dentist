@@ -24,13 +24,13 @@ The system SHALL set `Appointment.end_time` automatically based on `start_time` 
 
 ### Requirement: Patient.delete() MUST perform a soft delete
 
-The system SHALL set `deleted_at` timestamp instead of hard-deleting, preserving referential integrity.
+The system SHALL set `is_deleted=True` instead of hard-deleting, preserving referential integrity.
 
 #### Scenario: Patient soft delete
 
-- GIVEN an existing Patient with no `deleted_at` value
+- GIVEN an existing Patient with `is_deleted=False`
 - WHEN `Patient.delete()` is called
-- THEN the system SHALL set `deleted_at` to the current timestamp and SHALL NOT remove the database row
+- THEN the system SHALL set `is_deleted=True` and SHALL NOT remove the database row
 
 #### Scenario: Soft-deleted patient is excluded from queries
 
@@ -58,7 +58,7 @@ The system SHALL refuse to deduct stock if the resulting quantity would be negat
 
 - GIVEN an InventoryItem with `quantity=10`
 - WHEN `item.deduct_stock(30)` is called
-- THEN the system SHALL raise `InsufficientStockError` and `item.quantity` SHALL remain `10`
+- THEN the system SHALL raise `ValueError` and `item.quantity` SHALL remain `10`
 
 #### Scenario: Zero stock deduction matches exactly
 
