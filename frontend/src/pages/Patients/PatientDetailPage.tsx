@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, FileText, ClipboardCheck, Shield, Download } from 'lucide-react'
+import { ArrowLeft, User, FileText, ClipboardCheck, Shield, Download, Stethoscope } from 'lucide-react'
 import { usePatient } from '@/hooks/usePatients'
 import { patientsApi } from '@/api/patients'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClinicalNotesTab } from './ClinicalNotesTab'
 import { ConsentsTab } from './ConsentsTab'
 import { AuditTrailTab } from './AuditTrailTab'
+import { OdontogramTab } from '../../components/odontogram/OdontogramTab'
 import { formatDate, formatPhone } from '@/lib/utils'
 
 export function PatientDetailPage() {
@@ -104,6 +105,10 @@ export function PatientDetailPage() {
           <TabsTrigger value="audit">
             <Shield className="mr-2 h-4 w-4" />
             Auditoría
+          </TabsTrigger>
+          <TabsTrigger value="odontogram">
+            <Stethoscope className="mr-2 h-4 w-4" />
+            Odontograma
           </TabsTrigger>
         </TabsList>
 
@@ -231,6 +236,11 @@ export function PatientDetailPage() {
         {/* Audit Trail Tab (NOM-024) */}
         <TabsContent value="audit">
           <AuditTrailTab patientId={patient.id} />
+        </TabsContent>
+
+        {/* Odontogram Tab */}
+        <TabsContent value="odontogram">
+          <OdontogramTab patientId={patient.id} />
         </TabsContent>
       </Tabs>
     </div>
