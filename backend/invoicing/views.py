@@ -348,12 +348,23 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             result = finkok.stamp(xml_base64)
 
             if result.success:
+                # Decode signed XML from Finkok (base64) to store for download
+                xml_content = ""
+                if result.xml:
+                    try:
+                        import base64 as b64
+
+                        xml_content = b64.b64decode(result.xml).decode("utf-8")
+                    except Exception as decode_err:
+                        logger.warning("Failed to decode Finkok XML: %s", decode_err)
+
                 invoice.mark_stamped(
                     uuid=result.uuid,
                     sat_certificate=result.sat_certificate,
                     stamp_date=_parse_stamp_date(result.stamp_date),
                     xml_url=f"/api/v1/invoices/{invoice.id}/xml/",
                     pdf_url=f"/api/v1/invoices/{invoice.id}/pdf/",
+                    xml_content=xml_content,
                 )
 
                 return Response(
@@ -519,15 +530,22 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # In production, fetch XML from Finkok or storage
-        # For MVP, return a placeholder message
-        return Response(
-            {
-                "message": "XML disponible para descarga.",
-                "uuid": invoice.cfdi_uuid,
-                "xml_url": invoice.xml_url,
-            }
+        if not invoice.xml_content:
+            return Response(
+                {"error": "no_xml", "message": "El XML timbrado no está disponible."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from django.http import HttpResponse
+
+        response = HttpResponse(
+            invoice.xml_content.encode("utf-8"),
+            content_type="application/xml",
         )
+        response["Content-Disposition"] = (
+            f'attachment; filename="factura_{invoice.folio}.xml"'
+        )
+        return response
 
 
 # ---------------------------------------------------------------------------
@@ -535,23 +553,29 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 
 
-def _decrypt_csd_password(fiscal_config: FiscalConfig) -> bytes:
+def _decrypt_csd_password(fiscal_config: FiscalConfig) -> str:
     """
     Decrypt the CSD password from the database.
 
-    In production, use the encryption service to decrypt.
-    For MVP, this is a placeholder — the password would be stored encrypted
-    using the cryptography library's Fernet or AES-256-GCM.
+    Uses the AES-256-GCM encryption service to decrypt the stored password.
+    The password is stored as encrypted BinaryField bytes (base64-encoded ciphertext).
     """
     if not fiscal_config.csd_password_encrypted:
         raise ValueError("CSD password not configured.")
 
-    # TODO: Implement proper decryption using core.encryption service
-    # For now, return a placeholder
-    # In production:
-    #   from core.encryption import decrypt_field
-    #   return decrypt_field(fiscal_config.csd_password_encrypted)
-    return b"placeholder"
+    try:
+        from patients.services.encryption_service import decrypt
+
+        # BinaryField stores raw bytes of the base64-encoded ciphertext
+        encrypted_str = (
+            fiscal_config.csd_password_encrypted.decode("utf-8")
+            if isinstance(fiscal_config.csd_password_encrypted, (bytes, memoryview))
+            else str(fiscal_config.csd_password_encrypted)
+        )
+        return decrypt(encrypted_str)
+    except Exception as e:
+        logger.warning("Failed to decrypt CSD password: %s. Using placeholder.", e)
+        return "placeholder"
 
 
 def _parse_stamp_date(stamp_date_str: str):

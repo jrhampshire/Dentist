@@ -39,6 +39,27 @@ READ_TIMEOUT = 60
 MAX_RETRIES = 5
 BASE_BACKOFF = 1.0  # seconds
 
+# SOAP namespace map for Finkok responses
+NS_SOAP = "http://schemas.xmlsoap.org/soap/envelope/"
+NS_STA = "http://facturacion.finkok.com/stamp"
+NS_MAP = {
+    "soap": NS_SOAP,
+    "sta": NS_STA,
+}
+
+# Errors that should NOT be retried (validation/configuration problems)
+_NON_RETRYABLE_ERRORS = frozenset(
+    {
+        "CSD expirado",
+        "CSD caduco",
+        "certificado no válido",
+        "certificado caduco",
+        "XML mal formado",
+        "no encontrado",
+        "no válido",
+    }
+)
+
 
 @dataclass
 class StampResult:
@@ -165,32 +186,36 @@ class FinkokService:
 </soap:Envelope>"""
 
     def _parse_stamp_response(self, xml_response: str) -> StampResult:
-        """Parse Finkok stamp SOAP response."""
+        """Parse Finkok stamp SOAP response using namespace-aware XML."""
         try:
-            # Finkok returns XML with stamp_result element
-            # Extract key fields from the response
             import xml.etree.ElementTree as ET
 
-            # Remove namespaces for easier parsing
-            cleaned = xml_response.replace("soap:", "").replace(":", "_")
-            root = ET.fromstring(cleaned)
+            root = ET.fromstring(xml_response)
 
-            # Look for stamp_result in the body
-            error_elem = root.find(".//error")
-            if error_elem is not None and error_elem.text:
-                return StampResult(success=False, error=error_elem.text.strip())
+            # Navigate with namespace map: SOAP Envelope → Body → stamp result
+            body = root.find("soap:Body", NS_MAP)
+            if body is None:
+                return StampResult(
+                    success=False,
+                    error="Respuesta SOAP inválida: no se encontró Body.",
+                )
 
-            uuid_elem = root.find(".//uuid")
-            xml_elem = root.find(".//xml")
-            sat_cert_elem = root.find(".//sat_certificate")
-            stamp_date_elem = root.find(".//stamp_date")
+            # Try to find error element (any namespace in the response body)
+            def _find_text(parent, tag):
+                """Find an element by local tag name, ignoring namespace."""
+                for elem in parent.iter():
+                    if elem.tag.endswith(f"}}{tag}") or elem.tag == tag:
+                        return elem.text.strip() if elem.text else ""
+                return ""
 
-            uuid = uuid_elem.text.strip() if uuid_elem is not None else ""
-            xml_data = xml_elem.text.strip() if xml_elem is not None else ""
-            sat_cert = sat_cert_elem.text.strip() if sat_cert_elem is not None else ""
-            stamp_date = (
-                stamp_date_elem.text.strip() if stamp_date_elem is not None else ""
-            )
+            error = _find_text(body, "error")
+            if error:
+                return StampResult(success=False, error=error)
+
+            uuid = _find_text(body, "uuid")
+            xml_data = _find_text(body, "xml")
+            sat_cert = _find_text(body, "sat_certificate")
+            stamp_date = _find_text(body, "stamp_date")
 
             if not uuid:
                 return StampResult(
@@ -302,19 +327,30 @@ class FinkokService:
 </soap:Envelope>"""
 
     def _parse_cancel_response(self, xml_response: str) -> CancelResult:
-        """Parse Finkok cancel SOAP response."""
+        """Parse Finkok cancel SOAP response using namespace-aware XML."""
         try:
             import xml.etree.ElementTree as ET
 
-            cleaned = xml_response.replace("soap:", "").replace(":", "_")
-            root = ET.fromstring(cleaned)
+            root = ET.fromstring(xml_response)
 
-            error_elem = root.find(".//error")
-            if error_elem is not None and error_elem.text:
-                return CancelResult(success=False, error=error_elem.text.strip())
+            body = root.find("soap:Body", NS_MAP)
+            if body is None:
+                return CancelResult(
+                    success=False,
+                    error="Respuesta SOAP inválida: no se encontró Body.",
+                )
 
-            status_elem = root.find(".//estatus")
-            status = status_elem.text.strip() if status_elem is not None else ""
+            def _find_text(parent, tag):
+                for elem in parent.iter():
+                    if elem.tag.endswith(f"}}{tag}") or elem.tag == tag:
+                        return elem.text.strip() if elem.text else ""
+                return ""
+
+            error = _find_text(body, "error")
+            if error:
+                return CancelResult(success=False, error=error)
+
+            status = _find_text(body, "estatus")
 
             return CancelResult(success=True, status=status)
 
@@ -391,21 +427,31 @@ class FinkokService:
 </soap:Envelope>"""
 
     def _parse_status_response(self, xml_response: str) -> StatusResult:
-        """Parse Finkok status SOAP response."""
+        """Parse Finkok status SOAP response using namespace-aware XML."""
         try:
             import xml.etree.ElementTree as ET
 
-            cleaned = xml_response.replace("soap:", "").replace(":", "_")
-            root = ET.fromstring(cleaned)
+            root = ET.fromstring(xml_response)
 
-            error_elem = root.find(".//error")
-            if error_elem is not None and error_elem.text:
-                return StatusResult(success=False, error=error_elem.text.strip())
+            body = root.find("soap:Body", NS_MAP)
+            if body is None:
+                return StatusResult(
+                    success=False,
+                    error="Respuesta SOAP inválida: no se encontró Body.",
+                )
 
-            status_elem = root.find(".//estatus")
-            status = status_elem.text.strip() if status_elem is not None else ""
-            uuid_elem = root.find(".//uuid")
-            uuid = uuid_elem.text.strip() if uuid_elem is not None else ""
+            def _find_text(parent, tag):
+                for elem in parent.iter():
+                    if elem.tag.endswith(f"}}{tag}") or elem.tag == tag:
+                        return elem.text.strip() if elem.text else ""
+                return ""
+
+            error = _find_text(body, "error")
+            if error:
+                return StatusResult(success=False, error=error)
+
+            status = _find_text(body, "estatus")
+            uuid = _find_text(body, "uuid")
 
             return StatusResult(success=True, status=status, uuid=uuid)
 
@@ -425,6 +471,7 @@ class FinkokService:
         Execute a request with exponential backoff retry.
 
         Retries up to MAX_RETRIES times with backoff: 1s, 2s, 4s, 8s, 16s.
+        Skips retry for validation/config errors (non-retryable keywords).
         """
         last_result = None
         for attempt in range(MAX_RETRIES):
@@ -434,7 +481,12 @@ class FinkokService:
             if result.success:
                 return result
 
-            # Don't retry on parse errors or validation errors
+            # Check if error is non-retryable (validation/config issues)
+            error_lower = result.error.lower()
+            if any(keyword.lower() in error_lower for keyword in _NON_RETRYABLE_ERRORS):
+                return result
+
+            # Don't retry on parse errors
             if "parseando" in result.error or "parse" in result.error.lower():
                 return result
 

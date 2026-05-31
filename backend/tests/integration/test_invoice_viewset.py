@@ -39,7 +39,7 @@ class TestInvoiceStampFlow:
         fiscal_config = create_fiscal_config(clinic=clinic)
 
         # Mock the CSD password decryption
-        mock_decrypt.return_value = b"testpass"
+        mock_decrypt.return_value = "testpass"
 
         # Mock the CSD signing (returns XML with sello/certificado)
         mock_sign.return_value = '<?xml version="1.0"?><cfdi:Comprobante certificado="cert" sello="sello" noCertificado="123">test</cfdi:Comprobante>'
@@ -90,7 +90,7 @@ class TestInvoiceStampFlow:
         invoice = create_invoice(clinic=clinic, patient=patient, status="draft")
         create_fiscal_config(clinic=clinic)
 
-        mock_decrypt.return_value = b"testpass"
+        mock_decrypt.return_value = "testpass"
         mock_sign.return_value = (
             '<?xml version="1.0"?><cfdi:Comprobante>test</cfdi:Comprobante>'
         )
@@ -252,3 +252,81 @@ class TestInvoiceCancelFlow:
 
         assert response.status_code == 400
         assert "missing_folio" in response.json()["error"]
+
+
+@pytest.mark.integration
+@pytest.mark.django_db
+class TestXmlDownload:
+    """Test XML download endpoint."""
+
+    def test_download_xml_returns_xml_content(
+        self,
+        create_clinic,
+        create_user,
+        create_patient,
+        create_invoice,
+        create_fiscal_config,
+        auth_headers,
+    ):
+        clinic = create_clinic()
+        admin = create_user(role="admin", clinic=clinic)
+        patient = create_patient(clinic=clinic)
+        invoice = create_invoice(clinic=clinic, patient=patient, status="stamped")
+        invoice.cfdi_uuid = "TEST-UUID-123"
+        invoice.xml_content = '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0"><cfdi:Emisor Rfc="XAXX010101000"/></cfdi:Comprobante>'
+        invoice.save()
+
+        client = APIClient()
+        client.credentials(**auth_headers(admin, clinic))
+
+        response = client.get(f"/api/v1/invoices/{invoice.pk}/xml/")
+
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/xml"
+        assert "cfdi:Comprobante" in response.content.decode("utf-8")
+        assert 'filename="factura_' in response["Content-Disposition"]
+
+    def test_download_xml_not_stamped_returns_400(
+        self,
+        create_clinic,
+        create_user,
+        create_patient,
+        create_invoice,
+        auth_headers,
+    ):
+        clinic = create_clinic()
+        admin = create_user(role="admin", clinic=clinic)
+        patient = create_patient(clinic=clinic)
+        invoice = create_invoice(clinic=clinic, patient=patient, status="draft")
+
+        client = APIClient()
+        client.credentials(**auth_headers(admin, clinic))
+
+        response = client.get(f"/api/v1/invoices/{invoice.pk}/xml/")
+
+        assert response.status_code == 400
+        assert "not_stamped" in response.json()["error"]
+
+    def test_download_xml_no_content_returns_404(
+        self,
+        create_clinic,
+        create_user,
+        create_patient,
+        create_invoice,
+        auth_headers,
+    ):
+        clinic = create_clinic()
+        admin = create_user(role="admin", clinic=clinic)
+        patient = create_patient(clinic=clinic)
+        invoice = create_invoice(clinic=clinic, patient=patient, status="stamped")
+        invoice.cfdi_uuid = "TEST-UUID-456"
+        invoice.xml_content = ""
+        invoice.save()
+
+        client = APIClient()
+        client.credentials(**auth_headers(admin, clinic))
+
+        response = client.get(f"/api/v1/invoices/{invoice.pk}/xml/")
+
+        assert response.status_code == 404
+        assert "no_xml" in response.json()["error"]

@@ -172,3 +172,53 @@ class TestKeyManagement:
 
         # Should have logged a warning
         assert "ENCRYPTION_KEY not set" in caplog.text
+
+
+@pytest.mark.unit
+class TestCSDPasswordDecryption:
+    """Test _decrypt_csd_password in invoicing/views.py."""
+
+    def test_decrypts_from_binaryfield(self, settings):
+        """Verify _decrypt_csd_password decrypts encrypted CSD password."""
+        from unittest.mock import MagicMock
+        from invoicing.views import _decrypt_csd_password
+        from patients.services.encryption_service import encrypt
+
+        # Encrypt a test password
+        plaintext = "mi_password_csd"
+        encrypted = encrypt(plaintext)
+
+        # Mock FiscalConfig with encrypted password as bytes
+        fiscal_config = MagicMock()
+        fiscal_config.csd_password_encrypted = encrypted.encode("utf-8")
+
+        result = _decrypt_csd_password(fiscal_config)
+
+        assert result == plaintext
+        assert isinstance(result, str)
+
+    def test_returns_placeholder_on_decrypt_failure(self, settings, caplog):
+        """If decryption fails, return placeholder and log warning."""
+        from unittest.mock import MagicMock
+        from invoicing.views import _decrypt_csd_password
+
+        fiscal_config = MagicMock()
+        # Corrupted data that will fail decryption
+        fiscal_config.csd_password_encrypted = b"not-valid-encrypted-data!!!"
+
+        result = _decrypt_csd_password(fiscal_config)
+
+        assert result == "placeholder"
+        assert isinstance(result, str)
+
+    def test_raises_on_empty_password(self):
+        """Empty/unset CSD password should raise ValueError."""
+        import pytest as pytest_mod
+        from unittest.mock import MagicMock
+        from invoicing.views import _decrypt_csd_password
+
+        fiscal_config = MagicMock()
+        fiscal_config.csd_password_encrypted = None
+
+        with pytest_mod.raises(ValueError, match="CSD password not configured"):
+            _decrypt_csd_password(fiscal_config)

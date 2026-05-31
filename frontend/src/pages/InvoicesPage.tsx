@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { useCreateInvoice } from '@/hooks/useInvoices'
 
 export function InvoicesPage() {
   const { isAdmin } = useAuth()
@@ -19,6 +20,10 @@ export function InvoicesPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [formPatient, setFormPatient] = useState('')
+  const [formRfc, setFormRfc] = useState('')
+  const [formNombre, setFormNombre] = useState('')
+  const [formUsoCfdi, setFormUsoCfdi] = useState('G03')
 
   const queryClient = useQueryClient()
 
@@ -26,6 +31,8 @@ export function InvoicesPage() {
     queryKey: ['invoices', { page, status: statusFilter || undefined }],
     queryFn: () => invoicesApi.list({ page, status: statusFilter || undefined }),
   })
+
+  const createInvoice = useCreateInvoice()
 
   const stampMutation = useMutation({
     mutationFn: (id: string) => invoicesApi.stamp(id),
@@ -42,6 +49,29 @@ export function InvoicesPage() {
       setCancelReason('')
     },
   })
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formPatient || !formRfc) return
+
+    createInvoice.mutate(
+      {
+        patient_id: formPatient,
+        rfc_receptor: formRfc,
+        nombre_receptor: formNombre || 'Público General',
+        uso_cfdi: formUsoCfdi,
+      },
+      {
+        onSuccess: () => {
+          setDialogOpen(false)
+          setFormPatient('')
+          setFormRfc('')
+          setFormNombre('')
+          setFormUsoCfdi('G03')
+        },
+      },
+    )
+  }
 
   const handleDownload = async (id: string, type: 'pdf' | 'xml') => {
     try {
@@ -62,7 +92,7 @@ export function InvoicesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'draft': return 'bg-gray-100 text-gray-800'
-      case 'pending': return 'bg-blue-100 text-blue-800'
+      case 'pending_stamp': return 'bg-blue-100 text-blue-800'
       case 'stamped': return 'bg-green-100 text-green-800'
       case 'cancelled': return 'bg-red-100 text-red-800'
       case 'error': return 'bg-amber-100 text-amber-800'
@@ -73,7 +103,7 @@ export function InvoicesPage() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'draft': return 'Borrador'
-      case 'pending': return 'Pendiente'
+      case 'pending_stamp': return 'Pendiente'
       case 'stamped': return 'Timbrada'
       case 'cancelled': return 'Cancelada'
       case 'error': return 'Error'
@@ -99,28 +129,55 @@ export function InvoicesPage() {
             <DialogHeader>
               <DialogTitle>Crear factura (borrador)</DialogTitle>
             </DialogHeader>
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleCreateSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="patient">Paciente</Label>
-                <Input id="patient" placeholder="ID del paciente" />
+                <Input
+                  id="patient"
+                  placeholder="ID del paciente"
+                  value={formPatient}
+                  onChange={(e) => setFormPatient(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rfc_receptor">RFC del receptor</Label>
-                <Input id="rfc_receptor" placeholder="XAXX010101000" />
+                <Input
+                  id="rfc_receptor"
+                  placeholder="XAXX010101000"
+                  value={formRfc}
+                  onChange={(e) => setFormRfc(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nombre_receptor">Nombre del receptor</Label>
-                <Input id="nombre_receptor" placeholder="Nombre completo" />
+                <Input
+                  id="nombre_receptor"
+                  placeholder="Nombre completo"
+                  value={formNombre}
+                  onChange={(e) => setFormNombre(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="uso_cfdi">Uso de CFDI</Label>
-                <select id="uso_cfdi" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <select
+                  id="uso_cfdi"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={formUsoCfdi}
+                  onChange={(e) => setFormUsoCfdi(e.target.value)}
+                >
                   <option value="G03">G03 - Gastos en general</option>
-                  <option value="P01">P01 - Por definir</option>
+                  <option value="D01">D01 - Honorarios médicos, dentales y gastos hospitalarios</option>
+                  <option value="S01">S01 - Sin efectos fiscales</option>
+                  <option value="CP01">CP01 - Pagos</option>
                 </select>
               </div>
-              <Button type="submit" className="w-full">
-                Crear borrador
+              {createInvoice.error && (
+                <div className="text-sm text-red-600">
+                  {createInvoice.error.message || 'Error al crear la factura'}
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={createInvoice.isPending}>
+                {createInvoice.isPending ? 'Creando...' : 'Crear borrador'}
               </Button>
             </form>
           </DialogContent>
@@ -139,9 +196,9 @@ export function InvoicesPage() {
               Todas
             </Button>
             <Button
-              variant={statusFilter === 'pending' ? 'default' : 'outline'}
+              variant={statusFilter === 'pending_stamp' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setStatusFilter('pending')}
+              onClick={() => setStatusFilter('pending_stamp')}
             >
               Pendientes
             </Button>
@@ -193,7 +250,8 @@ export function InvoicesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {invoice.status === 'pending' && (
+                          {invoice.status === 'pending_stamp' && (
+
                             <Button
                               variant="ghost"
                               size="icon"

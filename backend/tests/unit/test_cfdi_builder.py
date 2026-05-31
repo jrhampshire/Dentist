@@ -242,7 +242,7 @@ class TestCadenaOriginal:
   </cfdi:Impuestos>
 </cfdi:Comprobante>"""
 
-        cadena = _build_cadena_original(xml, "ABC123")
+        cadena = _build_cadena_original(xml)
 
         assert cadena.startswith("||4.0|")
         assert cadena.endswith("||")

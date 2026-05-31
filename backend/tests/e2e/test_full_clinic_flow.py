@@ -261,7 +261,7 @@ class TestFullClinicFlow:
 
         # Mock stamping
         with patch("invoicing.views._decrypt_csd_password") as mock_decrypt:
-            mock_decrypt.return_value = b"testpass"
+            mock_decrypt.return_value = "testpass"
 
             with patch("invoicing.services.cfdi_builder.sign_cfdi") as mock_sign:
                 mock_sign.return_value = (

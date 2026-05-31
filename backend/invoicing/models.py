@@ -292,6 +292,13 @@ class Invoice(models.Model):
     )
     cancelled_at = models.DateTimeField(blank=True, null=True)
 
+    # Signed XML content (stored after successful stamping)
+    xml_content = models.TextField(
+        blank=True,
+        default="",
+        help_text="XML timbrado firmado por el SAT (decodificado de base64 Finkok)",
+    )
+
     # Error tracking
     error_message = models.TextField(
         blank=True,
@@ -383,6 +390,7 @@ class Invoice(models.Model):
         stamp_date: Any,
         xml_url: str = "",
         pdf_url: str = "",
+        xml_content: str = "",
     ) -> None:
         """Mark invoice as successfully stamped by SAT via Finkok."""
         self.status = self.Status.STAMPED
@@ -391,6 +399,7 @@ class Invoice(models.Model):
         self.cfdi_stamp_date = stamp_date
         self.xml_url = xml_url
         self.pdf_url = pdf_url
+        self.xml_content = xml_content
         self.error_message = ""
         self.save(
             update_fields=[
@@ -400,6 +409,7 @@ class Invoice(models.Model):
                 "cfdi_stamp_date",
                 "xml_url",
                 "pdf_url",
+                "xml_content",
                 "error_message",
                 "updated_at",
             ]

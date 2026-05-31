@@ -92,7 +92,7 @@ def sign_cfdi(
     xml_string: str,
     cert_path: str,
     key_path: str,
-    key_password: bytes,
+    key_password: str,
 ) -> str:
     """
     Sign a CFDI XML with the CSD certificate and private key.
@@ -106,7 +106,7 @@ def sign_cfdi(
         xml_string: The CFDI XML string.
         cert_path: Path to the .cer file.
         key_path: Path to the .key file.
-        key_password: Decrypted CSD password.
+        key_password: Decrypted CSD password (plaintext string).
 
     Returns:
         Signed CFDI XML string.
@@ -129,11 +129,11 @@ def sign_cfdi(
 
     private_key = serialization.load_der_private_key(
         key_data,
-        password=key_password,
+        password=key_password.encode("utf-8"),
     )
 
     # Build cadena original (simplified — in production, use SAT XSLT)
-    cadena_original = _build_cadena_original(xml_string, cert_serial)
+    cadena_original = _build_cadena_original(xml_string)
 
     # Sign the cadena original
     signature = private_key.sign(
@@ -282,7 +282,7 @@ def _add_impuestos(parent: ET.Element, invoice: Any) -> None:
     impuestos.set("TotalImpuestosTrasladados", _fmt_decimal(total_iva))
 
 
-def _build_cadena_original(xml_string: str, cert_serial: str) -> str:
+def _build_cadena_original(xml_string: str) -> str:
     """
     Build the cadena original for signing.
 

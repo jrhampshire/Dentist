@@ -273,3 +273,69 @@ class TestStampWithMock:
 
         assert result.success is False
         assert "conexión" in result.error
+
+
+@pytest.mark.unit
+class TestRetryWhitelist:
+    """Test _with_retry non-retryable error detection."""
+
+    def test_csd_expirado_returns_immediately(self):
+        """Non-retryable error 'CSD expirado' should NOT trigger retry delay."""
+        service = FinkokService(username="demo", password="demo123")
+        call_count = [0]
+
+        def failing_func():
+            call_count[0] += 1
+            return StampResult(success=False, error="CSD expirado — cert vencido")
+
+        result = service._with_retry(failing_func)
+
+        assert result.success is False
+        assert "CSD expirado" in result.error
+        # Should only be called once (no retries)
+        assert call_count[0] == 1
+
+    def test_xml_mal_formado_returns_immediately(self):
+        """Non-retryable error 'XML mal formado' should NOT trigger retry."""
+        service = FinkokService(username="demo", password="demo123")
+        call_count = [0]
+
+        def failing_func():
+            call_count[0] += 1
+            return StampResult(success=False, error="XML mal formado en línea 42")
+
+        result = service._with_retry(failing_func)
+
+        assert result.success is False
+        assert call_count[0] == 1
+
+    def test_certificado_no_valido_returns_immediately(self):
+        """Non-retryable error 'certificado no válido' should NOT trigger retry."""
+        service = FinkokService(username="demo", password="demo123")
+        call_count = [0]
+
+        def failing_func():
+            call_count[0] += 1
+            return StampResult(success=False, error="certificado no válido")
+
+        result = service._with_retry(failing_func)
+
+        assert result.success is False
+        assert call_count[0] == 1
+
+    def test_network_error_retries(self, monkeypatch):
+        """Network/timeout errors SHOULD retry."""
+        service = FinkokService(username="demo", password="demo123")
+        call_count = [0]
+
+        def failing_func():
+            call_count[0] += 1
+            return StampResult(
+                success=False, error="Timeout al conectar con Finkok (timbrado)."
+            )
+
+        result = service._with_retry(failing_func)
+
+        assert result.success is False
+        # Should have retried up to MAX_RETRIES (5)
+        assert call_count[0] == 5
