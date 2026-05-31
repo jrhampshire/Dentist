@@ -33,6 +33,12 @@ python-json-logger>=2.0,<3.0
 # Encryption (NOM-024)
 cryptography>=41.0,<42.0
 
+# Image handling (PatientImage thumbnails)
+Pillow>=10.0,<11.0
+
+# Cloud storage (S3/MinIO for patient images in production)
+django-storages>=1.14,<2.0
+
 # Production monitoring (optional)
 # sentry-sdk[django,celery]>=1.39,<2.0
 

@@ -94,6 +94,7 @@ urlpatterns = [
     path("api/v1/whatsapp/", include("notifications.urls")),
     path("api/v1/dashboard/", include("dashboard.urls")),
     path("api/v1/inventory/", include("inventory.urls")),
+    path("api/v1/dental-records/", include("dental_records.urls")),
 ]
 
 # Serve media files in dev

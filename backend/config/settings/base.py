@@ -44,6 +44,7 @@ LOCAL_APPS = [
     "patients",
     "appointments",
     "dashboard",
+    "dental_records",
     "invoicing",
     "notifications",
     "inventory",

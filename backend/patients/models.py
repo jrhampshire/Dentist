@@ -267,6 +267,27 @@ class ClinicalNote(models.Model):
     # Attachments metadata
     attachments = models.JSONField(default=list, blank=True)
 
+    # Dental odontogram fields (nullable — no behavior change for existing notes)
+    tooth_fdi = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="FDI tooth number (11-48 permanent, 51-85 primary)",
+    )
+    surface = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        choices=[
+            ("mesial", "Mesial"),
+            ("distal", "Distal"),
+            ("buccal", "Bucal"),
+            ("lingual", "Lingual"),
+            ("occlusal", "Oclusal"),
+            ("root", "Raíz"),
+        ],
+        help_text="Tooth surface referenced in this note",
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
