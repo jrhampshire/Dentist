@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, FileText, ClipboardCheck, Shield, Download, Stethoscope, Heart, Activity, Camera } from 'lucide-react'
+import { ArrowLeft, User, FileText, ClipboardCheck, Shield, Download, Stethoscope, Heart, Activity, Camera, ClipboardList } from 'lucide-react'
 import { usePatient } from '@/hooks/usePatients'
 import { patientsApi } from '@/api/patients'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { OdontogramTab } from '../../components/odontogram/OdontogramTab'
 import { MedicalHistoryTab } from '@/components/medical-history/MedicalHistoryTab'
 import { VitalSignsTab } from '@/components/vital-signs/VitalSignsTab'
 import { PatientImagesTab } from '@/components/patient-images/PatientImagesTab'
+import { TreatmentPlanTab } from '@/components/treatment-plan/TreatmentPlanTab'
 import { formatDate, formatPhone } from '@/lib/utils'
 
 export function PatientDetailPage() {
@@ -124,6 +125,10 @@ export function PatientDetailPage() {
           <TabsTrigger value="images">
             <Camera className="mr-2 h-4 w-4" />
             Imágenes
+          </TabsTrigger>
+          <TabsTrigger value="treatment-plan">
+            <ClipboardList className="mr-2 h-4 w-4" />
+            Plan de Tratamiento
           </TabsTrigger>
         </TabsList>
 
@@ -271,6 +276,11 @@ export function PatientDetailPage() {
         {/* Patient Images Tab */}
         <TabsContent value="images">
           <PatientImagesTab patientId={patient.id} />
+        </TabsContent>
+
+        {/* Treatment Plan Tab */}
+        <TabsContent value="treatment-plan">
+          <TreatmentPlanTab patientId={patient.id} />
         </TabsContent>
       </Tabs>
     </div>
