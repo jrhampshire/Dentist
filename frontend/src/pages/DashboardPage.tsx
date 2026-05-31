@@ -1,59 +1,168 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, Users, FileText, AlertTriangle, TrendingUp, Clock } from 'lucide-react'
+import { CalendarDays, Users, FileText, AlertTriangle, TrendingUp, Clock, DollarSign, RefreshCw } from 'lucide-react'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 import { useAuth } from '@/hooks/useAuth'
-import { useAppointments } from '@/hooks/useAppointments'
-import { usePatients } from '@/hooks/usePatients'
-import { useInventoryAlerts } from '@/hooks/useInventory'
+import { useDashboardMetrics } from '@/hooks/useDashboardMetrics'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-// import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
+
+// ---------------------------------------------------------------------------
+// Skeleton
+// ---------------------------------------------------------------------------
+
+function StatCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+        <div className="h-8 w-8 animate-pulse rounded bg-muted" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Stat Card
+// ---------------------------------------------------------------------------
+
+interface StatCardProps {
+  title: string
+  value: string
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+  bgColor: string
+}
+
+function StatCard({ title, value, icon: Icon, color, bgColor }: StatCardProps) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <div className={`${bgColor} rounded-md p-2`}>
+          <Icon className={`h-4 w-4 ${color}`} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Status badge
+// ---------------------------------------------------------------------------
+
+const STATUS_LABELS: Record<string, string> = {
+  scheduled: 'Programada',
+  confirmed: 'Confirmada',
+  in_progress: 'En curso',
+  completed: 'Completada',
+  cancelled: 'Cancelada',
+  no_show: 'No asistió',
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  scheduled: 'bg-blue-100 text-blue-800',
+  confirmed: 'bg-green-100 text-green-800',
+  in_progress: 'bg-yellow-100 text-yellow-800',
+  completed: 'bg-gray-100 text-gray-800',
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${STATUS_COLORS[status] || 'bg-gray-100 text-gray-800'}`}>
+      {STATUS_LABELS[status] || status}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export function DashboardPage() {
   const { user, isAdmin, isRecepcionista } = useAuth()
+  const { data: metrics, isLoading, isError, refetch } = useDashboardMetrics()
 
-  // Fetch summary data
-  const { data: appointmentsData } = useAppointments({ page: 1 })
-  const { data: patientsData } = usePatients({ page: 1 })
-  const { data: alerts } = useInventoryAlerts()
+  // ── Loading state ──────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Cargando dashboard…</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
-  const todayAppointments = appointmentsData?.results?.filter((a) => {
-    const apptDate = new Date(a.date)
-    const today = new Date()
-    return apptDate.toDateString() === today.toDateString()
-  }) || []
+  // ── Error state ────────────────────────────────────────────────────────
+  if (isError || !metrics) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <p className="text-muted-foreground">No se pudieron cargar las métricas.</p>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Reintentar
+        </Button>
+      </div>
+    )
+  }
 
-  const pendingInvoices = appointmentsData?.results?.filter((a) => a.status === 'scheduled') || []
-
-  const stats = [
+  // ── Stats ──────────────────────────────────────────────────────────────
+  const stats: StatCardProps[] = [
     {
       title: 'Citas hoy',
-      value: todayAppointments.length.toString(),
+      value: metrics.appointments_today.toString(),
       icon: CalendarDays,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
       title: 'Pacientes totales',
-      value: patientsData?.count?.toString() || '0',
+      value: metrics.patients_total.toString(),
       icon: Users,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
       title: 'Alertas inventario',
-      value: alerts?.length?.toString() || '0',
+      value: (metrics.low_stock_count + metrics.expiring_soon_count).toString(),
       icon: AlertTriangle,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
     },
     {
-      title: 'Citas pendientes',
-      value: pendingInvoices.length.toString(),
-      icon: Clock,
+      title: 'Ingresos del mes',
+      value: formatCurrency(Number(metrics.revenue_this_month)),
+      icon: DollarSign,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
   ]
+
+  // ── Chart: does data exist? ────────────────────────────────────────────
+  const hasRevenue = metrics.revenue_trend.some((p) => p.total > 0)
+  const hasAppointments = metrics.appointments_trend.some((p) => p.count > 0)
 
   return (
     <div className="space-y-6">
@@ -70,19 +179,110 @@ export function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <div className={`${stat.bgColor} rounded-md p-2`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
+          <StatCard key={stat.title} {...stat} />
         ))}
       </div>
+
+      {/* Charts */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Revenue Trend */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              Ingresos (últimos 30 días)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {hasRevenue ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={metrics.revenue_trend}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d: string) => {
+                      const [, month, day] = d.split('-')
+                      return `${day}/${month}`
+                    }}
+                    className="text-xs"
+                  />
+                  <YAxis className="text-xs" />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    labelFormatter={(label: string) => formatDate(label, 'dd/MM/yyyy')}
+                  />
+                  <Line type="monotone" dataKey="total" stroke="#10B981" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">No hay datos de ingresos en el período.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Appointments Trend */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-blue-600" />
+              Citas por día (últimos 30 días)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {hasAppointments ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={metrics.appointments_trend}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d: string) => {
+                      const [, month, day] = d.split('-')
+                      return `${day}/${month}`
+                    }}
+                    className="text-xs"
+                  />
+                  <YAxis allowDecimals={false} className="text-xs" />
+                  <Tooltip labelFormatter={(label: string) => formatDate(label, 'dd/MM/yyyy')} />
+                  <Bar dataKey="count" fill="#4A90D9" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">No hay datos de citas en el período.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Upcoming Appointments */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Próximas citas (7 días)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {metrics.upcoming_appointments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay citas programadas para los próximos 7 días.</p>
+          ) : (
+            <div className="space-y-3">
+              {metrics.upcoming_appointments.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-medium">{a.patient_name}</p>
+                    <p className="text-sm text-muted-foreground">{a.type_name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{a.time}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(a.date, 'dd/MM')}</p>
+                    <StatusBadge status={a.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <Card>
@@ -125,69 +325,6 @@ export function DashboardPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Today's Appointments */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Citas de hoy</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {todayAppointments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay citas programadas para hoy.</p>
-          ) : (
-            <div className="space-y-3">
-              {todayAppointments.slice(0, 5).map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div>
-                    <p className="font-medium">{appointment.patient_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {appointment.type_name} — {appointment.dentist_name}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{appointment.start_time}</p>
-                    <span
-                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                        appointment.status === 'confirmed'
-                          ? 'bg-green-100 text-green-800'
-                          : appointment.status === 'scheduled'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {appointment.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Inventory Alerts */}
-      {alerts && alerts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-600">
-              <AlertTriangle className="h-5 w-5" />
-              Alertas de inventario
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {alerts.slice(0, 5).map((alert, index) => (
-                <div key={index} className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-                  {alert.message}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

@@ -1,3 +1,20 @@
+// Inventory Kit types
+export interface KitItem {
+  item_id: string
+  quantity: number
+}
+
+export type InventoryCategory = 'material' | 'supply' | 'instrument' | 'medication' | 'lab' | 'other'
+
+export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
+  material: 'Material',
+  supply: 'Insumo',
+  instrument: 'Instrumento',
+  medication: 'Medicamento',
+  lab: 'Laboratorio',
+  other: 'Otro',
+}
+
 // User & Auth types
 export interface User {
   id: string
@@ -28,60 +45,96 @@ export interface Patient {
   clinic: string
   first_name: string
   last_name: string
+  second_last_name?: string
+  full_name?: string
   phone: string
   email: string
+  alternate_phone?: string
   curp: string
   rfc: string
   date_of_birth: string
   gender: string
   address: {
-    street: string
-    city: string
-    state: string
-    postal_code: string
+    street?: string
+    city?: string
+    state?: string
+    postal_code?: string
   }
-  emergency_contact: {
-    name: string
-    phone: string
-  }
+  occupation?: string
+  emergency_contact_name?: string
+  emergency_contact_phone?: string
+  emergency_contact_relation?: string
   blood_type: string
   allergies: string
   chronic_conditions: string
   current_medications: string
+  insurance_provider?: string
+  insurance_policy_number?: string
   consent_signed: boolean
+  consent_signed_at?: string
+  consent_version?: string
+  consent_status?: string
   whatsapp_opt_in: boolean
+  email_opt_in?: boolean
+  created_by?: string
+  created_by_name?: string
   is_deleted: boolean
   created_at: string
   updated_at: string
 }
+
+export type NoteType = 'evolution' | 'diagnosis' | 'treatment' | 'observation' | 'consent'
 
 export interface ClinicalNote {
   id: string
   patient: string
   appointment: string
   author: string
-  note_type: 'consultation' | 'treatment' | 'follow_up' | 'other'
+  author_name?: string
+  note_type: NoteType
+  note_type_display?: string
   title: string
   content: string
   is_signed: boolean
+  signed_at?: string
   signature_hash: string
   attachments: string[]
   created_at: string
   updated_at: string
 }
 
+export const NOTE_TYPE_LABELS: Record<NoteType, string> = {
+  evolution: 'Evolución',
+  diagnosis: 'Diagnóstico',
+  treatment: 'Tratamiento',
+  observation: 'Observación',
+  consent: 'Consentimiento',
+}
+
+export type ConsentType = 'general' | 'treatment' | 'data_processing' | 'whatsapp'
+
 export interface PatientConsent {
   id: string
   patient: string
-  consent_type: 'treatment' | 'data_processing' | 'marketing'
+  consent_type: ConsentType
+  consent_type_display?: string
   version: string
   content: string
   signed: boolean
-  signature_blob: string
+  signature_blob?: string
   signature_hash: string
-  signed_by: string
-  ip_address: string
-  signed_at: string
+  signed_by?: string
+  signed_by_name?: string
+  ip_address?: string
+  signed_at?: string
+  created_at: string
+}
+
+export const CONSENT_TYPE_LABELS: Record<ConsentType, string> = {
+  general: 'General',
+  treatment: 'Tratamiento',
+  data_processing: 'Datos Personales',
+  whatsapp: 'WhatsApp',
 }
 
 // Appointment types
@@ -93,7 +146,7 @@ export interface AppointmentType {
   duration_minutes: number
   price: number
   color: string
-  inventory_kit: string[]
+  inventory_kit: KitItem[]
   is_active: boolean
 }
 
@@ -114,6 +167,8 @@ export interface Appointment {
   cancellation_reason: string
   cancelled_by: string
   cancelled_at: string
+  inventory_consumed_at?: string
+  inventory_items_consumed?: number
   whatsapp_sent: boolean
   whatsapp_response: string
   created_by: string
@@ -178,7 +233,7 @@ export interface Invoice {
     unit_price: number
     amount: number
   }[]
-  status: 'draft' | 'pending' | 'stamped' | 'cancelled' | 'error'
+  status: 'draft' | 'pending_stamp' | 'stamped' | 'cancelled' | 'error'
   cfdi_uuid: string
   xml_url: string
   pdf_url: string
@@ -196,7 +251,7 @@ export interface InventoryItem {
   id: string
   clinic: string
   name: string
-  category: 'consumable' | 'instrument' | 'medication' | 'equipment' | 'other'
+  category: InventoryCategory
   unit: string
   stock_current: number
   stock_minimum: number
@@ -295,4 +350,62 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ['all'],
   dentist: ['patients:read', 'patients:write', 'appointments:read', 'appointments:write', 'clinical_notes:read', 'clinical_notes:write'],
   recepcionista: ['patients:read', 'patients:write', 'appointments:read', 'appointments:write', 'invoices:read'],
+}
+
+// Dashboard metrics types
+export interface MetricsTrendPoint {
+  date: string
+  count: number
+}
+
+export interface RevenueTrendPoint {
+  date: string
+  total: number
+}
+
+export interface AppointmentsByStatus {
+  total: number
+  by_status: Record<string, number>
+}
+
+export interface MonthlyAppointmentsSummary {
+  total: number
+  completion_rate: number
+}
+
+export interface UpcomingAppointment {
+  id: string
+  patient_name: string
+  date: string
+  time: string
+  type_name: string
+  status: string
+}
+
+export interface DashboardMetrics {
+  appointments_today: number
+  appointments_this_week: AppointmentsByStatus
+  appointments_this_month: MonthlyAppointmentsSummary
+  revenue_this_month: number
+  revenue_trend: RevenueTrendPoint[]
+  appointments_trend: MetricsTrendPoint[]
+  patients_total: number
+  patients_new_this_month: number
+  low_stock_count: number
+  expiring_soon_count: number
+  upcoming_appointments: UpcomingAppointment[]
+}
+
+// Audit log types (NOM-024 compliance)
+export interface AuditLog {
+  id: string
+  action: string
+  resource_type: string
+  resource_id: string
+  user?: string
+  user_name?: string
+  details: Record<string, unknown>
+  result: string
+  ip_address?: string
+  created_at: string
 }

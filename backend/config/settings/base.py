@@ -43,6 +43,7 @@ LOCAL_APPS = [
     "clinics",
     "patients",
     "appointments",
+    "dashboard",
     "invoicing",
     "notifications",
     "inventory",

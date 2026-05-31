@@ -92,6 +92,7 @@ urlpatterns = [
     path("api/v1/invoices/", include("invoicing.urls")),
     path("api/v1/fiscal-config/", include("invoicing.urls_fiscal")),
     path("api/v1/whatsapp/", include("notifications.urls")),
+    path("api/v1/dashboard/", include("dashboard.urls")),
     path("api/v1/inventory/", include("inventory.urls")),
 ]
 
