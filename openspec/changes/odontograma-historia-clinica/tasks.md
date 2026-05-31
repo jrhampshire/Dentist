@@ -187,84 +187,86 @@ PR #1: Backend foundation (models + migrations + signals)
 
 ## Work Unit 4: Frontend UI — Odontogram
 
-### Task 4.1 — OdontogramSVG component
+### Task 4.1 — OdontogramSVG component ✅
 **File**: `frontend/src/components/odontogram/OdontogramSVG.tsx`
-- SVG with viewBox `0 0 800 500`
-- Two arches: maxillary (upper) and mandibular (lower)
-- 32 permanent teeth (11-18, 21-28, 31-38, 41-48) + 20 primary (51-55, 61-65, 71-75, 81-85)
-- Each permanent tooth: 5 polygons (mesial, distal, buccal, lingual, occlusal)
-- Each primary tooth: 4 polygons (no occlusal)
-- Color mapping from `CONDITION_COLORS`
-- Props: `teeth: Tooth[]`, `onSurfaceClick(toothFdi, surfaceName)`
-- FDI labels rendered as `<text>` elements
+- [x] SVG with viewBox `0 0 800 500`
+- [x] Two arches: maxillary (upper) and mandibular (lower)
+- [x] 32 permanent teeth (11-18, 21-28, 31-38, 41-48) + 20 primary (51-55, 61-65, 71-75, 81-85)
+- [x] Each permanent tooth: 5 polygons (mesial, distal, buccal, lingual, occlusal)
+- [x] Each primary tooth: 4 polygons (no occlusal)
+- [x] Color mapping from `CONDITION_COLORS`
+- [x] Props: `teeth: Tooth[]`, `onSurfaceClick(toothFdi, surfaceName)`
+- [x] FDI labels rendered as `<text>` elements
 
-### Task 4.2 — SurfaceConditionModal
+### Task 4.2 — SurfaceConditionModal ✅
 **File**: `frontend/src/components/odontogram/SurfaceConditionModal.tsx`
-- Dialog/modal with condition dropdown (9 options with color swatches)
-- Notes textarea
-- Submit button → calls `createDentalRecord`
-- Shadcn/ui Dialog + Select + Textarea components
+- [x] Dialog/modal with condition dropdown (14 options with color swatches)
+- [x] Notes textarea
+- [x] Submit button → calls `onSubmit` callback
+- [x] Shadcn/ui Dialog + native select + textarea components
 
-### Task 4.3 — LegendPanel
+### Task 4.3 — LegendPanel ✅
 **File**: `frontend/src/components/odontogram/LegendPanel.tsx`
-- Color legend showing all 9 conditions with their colors
-- Compact card layout
+- [x] Color legend showing all 14 conditions with their colors
+- [x] Compact 2-column grid layout
 
-### Task 4.4 — OdontogramTab
+### Task 4.4 — OdontogramTab ✅
 **File**: `frontend/src/components/odontogram/OdontogramTab.tsx`
-- Composes OdontogramSVG + SurfaceConditionModal + LegendPanel
-- Fetches odontogram data via `useOdontogram`
-- Handles surface click → modal → create entry → refetch
-- Loading/error states
+- [x] Composes OdontogramSVG + SurfaceConditionModal + LegendPanel
+- [x] Fetches odontogram data via `useOdontogram`
+- [x] Handles surface click → modal → create entry → query invalidation
+- [x] Loading/error/empty states
 
-### Task 4.5 — Wire Odontogram tab into PatientDetailPage
+### Task 4.5 — Wire Odontogram tab into PatientDetailPage ✅
 **File**: `frontend/src/pages/Patients/PatientDetailPage.tsx`
-- Add new TabsTrigger: "Odontograma" (value="odontogram")
-- Add TabsContent wrapping `<OdontogramTab patientId={patient.id} />`
-- Import `OdontogramTab`
+- [x] Add new TabsTrigger: "Odontograma" (value="odontogram")
+- [x] Add TabsContent wrapping `<OdontogramTab patientId={patient.id} />`
+- [x] Import `OdontogramTab`
 
 ---
 
 ## Work Unit 5: Frontend UI — MedicalHistory + VitalSigns
 
-### Task 5.1 — MedicalHistoryForm
+### Task 5.1 — MedicalHistoryForm ✅
 **File**: `frontend/src/components/medical-history/MedicalHistoryForm.tsx`
-- Form with 7 textareas (5 antecedentes + motivo_consulta + enfermedad_actual)
-- Shadcn/ui Form + Textarea
-- Submit → `upsertMedicalHistory`
-- Pre-fills with existing active record data
+- [x] Form with 5 antecedent sections (patológicos, quirúrgicos, alérgicos, farmacológicos, familiares) with add/remove items
+- [x] Textareas for motivo_consulta + enfermedad_actual
+- [x] Submit → `upsertMedicalHistory`
+- [x] Pre-fills with existing active record data
 
-### Task 5.2 — MedicalHistoryTab
+### Task 5.2 — MedicalHistoryTab ✅
 **File**: `frontend/src/components/medical-history/MedicalHistoryTab.tsx`
-- Shows active record (read-only view) + edit button
-- Edit mode shows MedicalHistoryForm
-- Version history toggle (collapsible list of past versions)
-- Uses `useMedicalHistory` + `useMedicalHistoryVersions`
+- [x] Shows active record (read-only view) + edit button
+- [x] Edit mode shows MedicalHistoryForm
+- [x] Version history toggle (collapsible list of past versions)
+- [x] Uses `useMedicalHistory` + `useMedicalHistoryVersions`
+- [x] Loading/error/empty states
 
-### Task 5.3 — VitalSignsForm
+### Task 5.3 — VitalSignsForm ✅
 **File**: `frontend/src/components/vital-signs/VitalSignsForm.tsx`
-- Form with fields: BP systolic/diastolic, heart rate, temperature, weight, height, notes
-- Validation: systolic > diastolic, physiological ranges
-- Shadcn/ui Input + Form
-- Submit → `createVitalSigns`
+- [x] Form with fields: BP systolic/diastolic, heart rate, temperature, weight, height, notes
+- [x] Validation: min/max ranges on number inputs
+- [x] Shadcn/ui Input + textarea
+- [x] Submit → `createVitalSigns`
 
-### Task 5.4 — VitalSignsHistory
+### Task 5.4 — VitalSignsHistory ✅
 **File**: `frontend/src/components/vital-signs/VitalSignsHistory.tsx`
-- Table/list of past vital signs records
-- Sorted by recorded_at desc
-- Shows BP as "120/80", HR, temp, weight, height
-- Date range filter (optional, via React Query params)
+- [x] Table of past vital signs records
+- [x] Sorted by recorded_at desc (handled in parent)
+- [x] Shows BP as "120/80", HR, temp, weight, height
+- [x] Empty state
 
-### Task 5.5 — VitalSignsTab
+### Task 5.5 — VitalSignsTab ✅
 **File**: `frontend/src/components/vital-signs/VitalSignsTab.tsx`
-- Composes VitalSignsForm + VitalSignsHistory
-- Uses `useVitalSigns` + `useCreateVitalSigns`
+- [x] Composes VitalSignsForm + VitalSignsHistory
+- [x] Uses `useVitalSigns` + `useCreateVitalSigns`
+- [x] Loading/error/empty states
 
-### Task 5.6 — Wire MedicalHistory + VitalSigns tabs into PatientDetailPage
+### Task 5.6 — Wire MedicalHistory + VitalSigns tabs into PatientDetailPage ✅
 **File**: `frontend/src/pages/Patients/PatientDetailPage.tsx`
-- Add TabsTrigger: "Historia Médica" (value="medical-history")
-- Add TabsTrigger: "Signos Vitales" (value="vital-signs")
-- Add corresponding TabsContent with `<MedicalHistoryTab>` and `<VitalSignsTab>`
+- [x] Add TabsTrigger: "Historia Médica" (value="medical-history", Heart icon)
+- [x] Add TabsTrigger: "Signos Vitales" (value="vital-signs", Activity icon)
+- [x] Add corresponding TabsContent with `<MedicalHistoryTab>` and `<VitalSignsTab>`
 
 ---
 

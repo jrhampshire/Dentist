@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, FileText, ClipboardCheck, Shield, Download, Stethoscope } from 'lucide-react'
+import { ArrowLeft, User, FileText, ClipboardCheck, Shield, Download, Stethoscope, Heart, Activity } from 'lucide-react'
 import { usePatient } from '@/hooks/usePatients'
 import { patientsApi } from '@/api/patients'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import { ClinicalNotesTab } from './ClinicalNotesTab'
 import { ConsentsTab } from './ConsentsTab'
 import { AuditTrailTab } from './AuditTrailTab'
 import { OdontogramTab } from '../../components/odontogram/OdontogramTab'
+import { MedicalHistoryTab } from '@/components/medical-history/MedicalHistoryTab'
+import { VitalSignsTab } from '@/components/vital-signs/VitalSignsTab'
 import { formatDate, formatPhone } from '@/lib/utils'
 
 export function PatientDetailPage() {
@@ -109,6 +111,14 @@ export function PatientDetailPage() {
           <TabsTrigger value="odontogram">
             <Stethoscope className="mr-2 h-4 w-4" />
             Odontograma
+          </TabsTrigger>
+          <TabsTrigger value="medical-history">
+            <Heart className="mr-2 h-4 w-4" />
+            Historia Médica
+          </TabsTrigger>
+          <TabsTrigger value="vital-signs">
+            <Activity className="mr-2 h-4 w-4" />
+            Signos Vitales
           </TabsTrigger>
         </TabsList>
 
@@ -241,6 +251,16 @@ export function PatientDetailPage() {
         {/* Odontogram Tab */}
         <TabsContent value="odontogram">
           <OdontogramTab patientId={patient.id} />
+        </TabsContent>
+
+        {/* Medical History Tab */}
+        <TabsContent value="medical-history">
+          <MedicalHistoryTab patientId={patient.id} />
+        </TabsContent>
+
+        {/* Vital Signs Tab */}
+        <TabsContent value="vital-signs">
+          <VitalSignsTab patientId={patient.id} />
         </TabsContent>
       </Tabs>
     </div>
