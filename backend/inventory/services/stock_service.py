@@ -343,31 +343,3 @@ def mark_expired_items(clinic=None) -> int:
         logger.info(f"Marked {count} inventory items as expired (all clinics)")
 
     return count
-
-
-def consume_inventory_kit(kit: list[dict], clinic_id: str, reason: str = "") -> bool:
-    """
-    Consume all items in an inventory kit (wrapper for Celery tasks).
-
-    Args:
-        kit: List of {"item_id": uuid, "quantity": int} dicts
-        clinic_id: Clinic UUID for tenant isolation
-        reason: Reason for consumption
-
-    Returns:
-        True if all items were consumed
-
-    Raises:
-        ValueError if any item has insufficient stock or is blocked
-    """
-    # We need an appointment_id for the reference — use a synthetic one
-    from uuid import uuid4
-
-    appointment_id = str(uuid4())
-    movements = consume_kit(
-        clinic_id=clinic_id,
-        kit=kit,
-        appointment_id=appointment_id,
-        user=None,
-    )
-    return len(movements) > 0 or len(kit) == 0

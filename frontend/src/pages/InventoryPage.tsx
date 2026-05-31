@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { INVENTORY_CATEGORY_LABELS, type InventoryCategory } from '@/types'
 
 export function InventoryPage() {
   const [page, setPage] = useState(1)
@@ -25,7 +26,7 @@ export function InventoryPage() {
 
   const [formData, setFormData] = useState<{
     name: string
-    category: 'consumable' | 'instrument' | 'medication' | 'equipment' | 'other'
+    category: InventoryCategory
     unit: string
     stock_current: number
     stock_minimum: number
@@ -35,7 +36,7 @@ export function InventoryPage() {
     barcode: string
   }>({
     name: '',
-    category: 'consumable',
+    category: 'material',
     unit: 'pieza',
     stock_current: 0,
     stock_minimum: 0,
@@ -55,7 +56,7 @@ export function InventoryPage() {
     e.preventDefault()
     await createItem.mutateAsync(formData)
     setDialogOpen(false)
-    setFormData({ name: '', category: 'consumable', unit: 'pieza', stock_current: 0, stock_minimum: 0, stock_maximum: 0, unit_price: 0, supplier: '', barcode: '' })
+    setFormData({ name: '', category: 'material', unit: 'pieza', stock_current: 0, stock_minimum: 0, stock_maximum: 0, unit_price: 0, supplier: '', barcode: '' })
   }
 
   const handleAdjust = async (e: React.FormEvent) => {
@@ -68,17 +69,10 @@ export function InventoryPage() {
     }
   }
 
-  const categories = ['consumable', 'instrument', 'medication', 'equipment', 'other']
+  const categories: InventoryCategory[] = ['material', 'supply', 'instrument', 'medication', 'lab', 'other']
 
   const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case 'consumable': return 'Consumible'
-      case 'instrument': return 'Instrumento'
-      case 'medication': return 'Medicamento'
-      case 'equipment': return 'Equipo'
-      case 'other': return 'Otro'
-      default: return cat
-    }
+    return INVENTORY_CATEGORY_LABELS[cat as InventoryCategory] || cat
   }
 
   const getStockStatus = (item: { stock_current: number; stock_minimum: number; is_expired: boolean }) => {
@@ -117,7 +111,7 @@ export function InventoryPage() {
                     id="category"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value as typeof formData.category })}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value as InventoryCategory })}
                   >
                     {categories.map((cat) => (
                       <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>

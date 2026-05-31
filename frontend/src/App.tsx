@@ -4,9 +4,11 @@ import { AppShell } from './components/layout/AppShell'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PatientsPage } from './pages/PatientsPage'
+import { PatientDetailPage } from './pages/Patients/PatientDetailPage'
 import { AppointmentsPage } from './pages/AppointmentsPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { InventoryPage } from './pages/InventoryPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -47,6 +49,14 @@ function App() {
         }
       />
       <Route
+        path="/patients/:id"
+        element={
+          <ProtectedRoute>
+            <PatientDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/appointments"
         element={
           <ProtectedRoute>
@@ -67,6 +77,14 @@ function App() {
         element={
           <ProtectedRoute>
             <InventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

@@ -16,6 +16,7 @@ from datetime import date
 from typing import Any
 
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -25,6 +26,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from appointments.models import Appointment, AppointmentType, ScheduleSlot
+from inventory.models import InventoryItem
+from inventory.services.stock_service import consume_kit
 from appointments.serializers import (
     AppointmentCreateSerializer,
     AppointmentSerializer,
@@ -214,6 +217,169 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "slots": formatted_slots,
                 "total_available": len(formatted_slots),
             }
+        )
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+        """
+        Complete an appointment and auto-consume its inventory kit.
+
+        POST /api/v1/appointments/{id}/complete/
+
+        Status must be scheduled, confirmed, or in_progress.
+        Idempotent: once inventory_consumed_at is set, returns 400.
+        If the appointment type has a non-empty inventory_kit,
+        stock is deducted in a single atomic transaction.
+        """
+        appointment = self.get_object()
+        appt_type = appointment.appointment_type
+
+        # ------------------------------------------------------------------
+        # 1. Idempotency check (before status — already consumed is always an error)
+        # ------------------------------------------------------------------
+        if appointment.inventory_consumed_at is not None:
+            return Response(
+                {
+                    "error": "already_completed",
+                    "message": (
+                        "La cita ya fue completada. "
+                        "Inventario consumido en: "
+                        f"{appointment.inventory_consumed_at.isoformat()}"
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ------------------------------------------------------------------
+        # 2. Validate status
+        # ------------------------------------------------------------------
+        valid_statuses = [
+            Appointment.Status.SCHEDULED,
+            Appointment.Status.CONFIRMED,
+            Appointment.Status.IN_PROGRESS,
+        ]
+        if appointment.status not in valid_statuses:
+            return Response(
+                {
+                    "error": "invalid_status",
+                    "message": (
+                        "Solo se pueden completar citas en estado "
+                        "'programada', 'confirmada' o 'en curso'."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ------------------------------------------------------------------
+        # 3. Pre-validate kit items (collect per-item errors)
+        # ------------------------------------------------------------------
+        kit = appt_type.inventory_kit or []
+        pre_errors = []
+
+        if kit:
+            for kit_item in kit:
+                item_id = kit_item.get("item_id")
+                quantity = kit_item.get("quantity", 0)
+
+                if (
+                    not item_id
+                    or not isinstance(quantity, (int, float))
+                    or quantity <= 0
+                ):
+                    continue
+
+                try:
+                    item = InventoryItem.objects.select_for_update().get(
+                        id=item_id,
+                        clinic_id=str(appointment.clinic_id),
+                        is_active=True,
+                    )
+                except InventoryItem.DoesNotExist:
+                    pre_errors.append(
+                        {
+                            "item_id": str(item_id),
+                            "item_name": "Desconocido",
+                            "available": 0,
+                            "required": quantity,
+                            "error": "Item no encontrado",
+                        }
+                    )
+                    continue
+
+                if item.is_blocked:
+                    pre_errors.append(
+                        {
+                            "item_id": str(item_id),
+                            "item_name": item.name,
+                            "available": int(item.stock_current),
+                            "required": quantity,
+                            "error": "Item bloqueado",
+                        }
+                    )
+                    continue
+
+                if item.is_expired:
+                    pre_errors.append(
+                        {
+                            "item_id": str(item_id),
+                            "item_name": item.name,
+                            "available": int(item.stock_current),
+                            "required": quantity,
+                            "error": "Item expirado",
+                        }
+                    )
+                    continue
+
+                if item.stock_current < quantity:
+                    pre_errors.append(
+                        {
+                            "item_id": str(item_id),
+                            "item_name": item.name,
+                            "available": int(item.stock_current),
+                            "required": quantity,
+                            "error": "Stock insuficiente",
+                        }
+                    )
+
+        if pre_errors:
+            return Response(
+                {
+                    "error": "stock_insufficient",
+                    "message": "Stock insuficiente para consumir el kit de inventario.",
+                    "details": pre_errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ------------------------------------------------------------------
+        # 4. Consume kit + update appointment (atomic)
+        # ------------------------------------------------------------------
+        with transaction.atomic():
+            if kit:
+                movements = consume_kit(
+                    clinic_id=str(appointment.clinic_id),
+                    kit=kit,
+                    appointment_id=str(appointment.id),
+                    user=request.user,
+                )
+                items_consumed = len(movements)
+            else:
+                items_consumed = 0
+
+            appointment.status = Appointment.Status.COMPLETED
+            appointment.inventory_consumed_at = timezone.now()
+            appointment.save(
+                update_fields=["status", "inventory_consumed_at", "updated_at"]
+            )
+
+        return Response(
+            {
+                "id": str(appointment.id),
+                "status": "completed",
+                "inventory_consumed_at": appointment.inventory_consumed_at.isoformat(),
+                "inventory_items_consumed": items_consumed,
+            },
+            status=status.HTTP_200_OK,
         )
 
     def perform_destroy(self, instance):

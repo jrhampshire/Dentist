@@ -132,3 +132,15 @@ export function useDeleteSchedule() {
     },
   })
 }
+
+// Complete Appointment (inventory kit consumption)
+export function useCompleteAppointment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => appointmentsApi.complete(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['appointment', id] })
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+    },
+  })
+}

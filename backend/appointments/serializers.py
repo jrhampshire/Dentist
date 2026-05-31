@@ -66,6 +66,80 @@ class AppointmentTypeSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_inventory_kit(self, value):
+        """
+        Validate the inventory_kit JSONField structure.
+
+        Each entry must be a dict with:
+        - item_id: valid UUID string referencing an existing InventoryItem
+        - quantity: positive integer
+        """
+        if not value:
+            return value
+
+        from inventory.models import InventoryItem
+
+        request = self.context.get("request")
+        clinic_id = getattr(request, "clinic_id", None) if request else None
+
+        if not clinic_id:
+            raise serializers.ValidationError(
+                "No se pudo determinar la clínica para validar el kit."
+            )
+
+        for kit_item in value:
+            if not isinstance(kit_item, dict):
+                raise serializers.ValidationError(
+                    f"Cada entrada del kit debe ser un diccionario. "
+                    f"Se recibió: {type(kit_item).__name__}"
+                )
+
+            item_id = kit_item.get("item_id")
+            if not item_id:
+                raise serializers.ValidationError(
+                    "Cada entrada del kit debe tener 'item_id'."
+                )
+
+            # Validate UUID format
+            try:
+                from uuid import UUID
+
+                UUID(str(item_id))
+            except (ValueError, AttributeError):
+                raise serializers.ValidationError(
+                    f"item_id inválido: '{item_id}' no es un UUID válido."
+                )
+
+            # Validate quantity
+            quantity = kit_item.get("quantity")
+            if quantity is None:
+                raise serializers.ValidationError(
+                    f"Cada entrada del kit debe tener 'quantity'."
+                )
+            try:
+                quantity = int(quantity)
+            except (ValueError, TypeError):
+                raise serializers.ValidationError(
+                    f"La cantidad debe ser un número entero. Se recibió: {quantity}"
+                )
+            if quantity <= 0:
+                raise serializers.ValidationError(
+                    f"La cantidad debe ser un entero positivo (> 0). "
+                    f"Se recibió: {quantity}"
+                )
+
+            # Validate item exists in this clinic
+            try:
+                InventoryItem.objects.get(
+                    id=item_id, clinic_id=clinic_id, is_active=True
+                )
+            except InventoryItem.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"Item de inventario no encontrado o inactivo: {item_id}"
+                )
+
+        return value
+
     def create(self, validated_data: dict[str, Any]) -> AppointmentType:
         """Create appointment type with clinic from JWT context."""
         request = self.context.get("request")
@@ -297,6 +371,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "cancellation_reason",
             "cancelled_by",
             "cancelled_at",
+            "inventory_consumed_at",
             "whatsapp_sent",
             "whatsapp_sent_at",
             "whatsapp_response",

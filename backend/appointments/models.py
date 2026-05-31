@@ -135,6 +135,13 @@ class Appointment(models.Model):
     )
     cancelled_at = models.DateTimeField(blank=True, null=True)
 
+    # Inventory tracking
+    inventory_consumed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When inventory kit was consumed on completion",
+    )
+
     # WhatsApp tracking
     whatsapp_sent = models.BooleanField(default=False)
     whatsapp_sent_at = models.DateTimeField(blank=True, null=True)

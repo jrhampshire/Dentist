@@ -47,4 +47,8 @@ export const appointmentsApi = {
 
   deleteSchedule: (id: string) =>
     apiClient.delete(`/schedule/${id}/`).then((r) => r.data),
+
+  // Complete appointment (inventory kit consumption)
+  complete: (id: string) =>
+    apiClient.post<Appointment>(`/appointments/${id}/complete/`).then((r) => r.data),
 }

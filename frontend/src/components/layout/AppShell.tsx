@@ -6,6 +6,7 @@ import {
   CalendarDays,
   FileText,
   Package,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Citas', href: '/appointments', icon: CalendarDays },
   { name: 'Facturas', href: '/invoices', icon: FileText },
   { name: 'Inventario', href: '/inventory', icon: Package },
+  { name: 'Configuración', href: '/settings', icon: Settings },
 ]
 
 interface AppShellProps {
