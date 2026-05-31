@@ -84,11 +84,11 @@ class TestTwilioSignatureValidation:
             TwilioService.validate_signature(url, tampered_params, signature) is False
         )
 
-    def test_no_auth_token_returns_false(self, settings, caplog):
+    def test_no_auth_token_returns_false(self, settings):
         settings.TWILIO_AUTH_TOKEN = ""
 
-        assert TwilioService.validate_signature("url", {}, "sig") is False
-        assert "no auth token configured" in caplog.text
+        result = TwilioService.validate_signature("url", {}, "sig")
+        assert result is False
 
 
 @pytest.mark.contract

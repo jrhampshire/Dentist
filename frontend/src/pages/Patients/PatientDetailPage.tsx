@@ -196,7 +196,22 @@ export function PatientDetailPage() {
                 {patient.consent_version && (
                   <InfoRow label="Versión" value={patient.consent_version} />
                 )}
-                <InfoRow label="WhatsApp" value={patient.whatsapp_opt_in ? 'Aceptado' : 'No aceptado'} />
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">WhatsApp</dt>
+                  <dd className="mt-1">
+                    {patient.whatsapp_opt_in ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm text-green-700">
+                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                        Aceptado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-sm text-red-700">
+                        <span className="h-2 w-2 rounded-full bg-red-500" />
+                        No aceptado
+                      </span>
+                    )}
+                  </dd>
+                </div>
                 <InfoRow label="Email" value={patient.email_opt_in ? 'Aceptado' : 'No aceptado'} />
               </CardContent>
             </Card>

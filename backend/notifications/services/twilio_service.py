@@ -13,7 +13,7 @@ import hashlib
 import hmac
 import logging
 import time
-from base64 import b64decode
+import base64
 from typing import Any
 
 import requests
@@ -217,10 +217,9 @@ class TwilioService:
             hashlib.sha1,
         ).digest()
 
-        expected_b64 = b64decode(expected)
-        provided_b64 = b64decode(signature)
+        expected_b64 = base64.b64encode(expected).decode("utf-8")
 
-        return hmac.compare_digest(expected_b64, provided_b64)
+        return hmac.compare_digest(expected_b64, signature)
 
     @staticmethod
     def parse_response(body: str) -> str | None:

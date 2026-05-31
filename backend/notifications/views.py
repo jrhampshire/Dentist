@@ -134,10 +134,10 @@ class WebhookView(APIView):
             body[:50],
         )
 
-        # TODO: Process inbound message with Celery task
-        # - Match phone number to patient
-        # - Parse intent (CONFIRMAR, CANCELAR, REAGENDAR)
-        # - Update appointment status accordingly
+        # Dispatch Celery task to process the inbound message
+        from celery_app.tasks import process_whatsapp_response
+
+        process_whatsapp_response.delay(str(webhook.id))
 
         return Response(
             {"status": "received", "sid": message_sid},
@@ -187,14 +187,21 @@ class WebhookView(APIView):
         """
         Resolve clinic ID from the destination phone number.
 
-        In production, this should query a clinic_phone_mappings table.
-        For now, returns None — the processing task will resolve it.
+        Iterates clinics matching by phone or cfdi_config.phone mapping.
+        Returns the first clinic whose number matches the webhook's to_number.
         """
-        # TODO: Implement clinic phone number mapping
         from clinics.models import Clinic
 
-        clinic = Clinic.objects.first()
-        return clinic.id if clinic else None
+        for clinic in Clinic.objects.filter(is_deleted=False):
+            if clinic.phone == phone_number:
+                return str(clinic.id)
+            cfdi_config = clinic.cfdi_config or {}
+            cfdi_phone = (
+                cfdi_config.get("phone") if isinstance(cfdi_config, dict) else None
+            )
+            if cfdi_phone == phone_number:
+                return str(clinic.id)
+        return None
 
 
 # ---------------------------------------------------------------------------

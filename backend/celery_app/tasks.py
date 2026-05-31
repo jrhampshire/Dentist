@@ -107,7 +107,9 @@ def send_appointment_reminders(self):
     """
     from appointments.models import Appointment
     from notifications.models import NotificationLog
+    from notifications.services.template_service import render_template
     from notifications.services.twilio_service import TwilioService
+    from patients.models import PatientConsent
 
     now = timezone.now()
     tomorrow = now + timedelta(hours=24)
@@ -135,22 +137,31 @@ def send_appointment_reminders(self):
             patient = appt.patient
             phone = patient.phone
 
-            # Build reminder message
+            # Consent check: opt_in flag + signed PatientConsent record
+            if (
+                not patient.whatsapp_opt_in
+                or not PatientConsent.objects.filter(
+                    patient=patient, consent_type="whatsapp", signed=True
+                ).exists()
+            ):
+                logger.warning(
+                    "WhatsApp consent not confirmed for patient %s", patient.id
+                )
+                continue
+
+            # Build reminder via pre-approved template (Twilio TOS compliance)
             appointment_date = appt.date.strftime("%d/%m/%Y")
             appointment_time = appt.start_time.strftime("%H:%M")
             dentist_name = appt.dentist.get_full_name()
-            clinic_name = appt.clinic.name
 
-            body = (
-                f"Hola {patient.full_name}, te recordamos tu cita dental:\n\n"
-                f"📅 Fecha: {appointment_date}\n"
-                f"⏰ Hora: {appointment_time}\n"
-                f"👨‍⚕️ Doctor: {dentist_name}\n"
-                f"🏥 Clínica: {clinic_name}\n\n"
-                f"Responde:\n"
-                f"✅ CONFIRMAR — para confirmar\n"
-                f"❌ CANCELAR — para cancelar\n"
-                f"🚫 BAJA — para dejar de recibir mensajes"
+            body = render_template(
+                "appointment_reminder",
+                {
+                    "nombre": patient.full_name,
+                    "fecha": appointment_date,
+                    "hora": appointment_time,
+                    "doctor": dentist_name,
+                },
             )
 
             result = _send_twilio(twilio, to_number=phone, body=body)
@@ -200,9 +211,7 @@ def send_appointment_reminders(self):
     default_retry_delay=60,
     queue="high",
 )
-def process_whatsapp_response(
-    self, from_number: str, body: str, clinic_id: str | None = None
-):
+def process_whatsapp_response(self, webhook_id: str):
     """
     Parse a patient's WhatsApp response and take appropriate action.
 
@@ -212,14 +221,23 @@ def process_whatsapp_response(
     - BAJA: Opt-out from future notifications
 
     Args:
-        from_number: Patient's phone number (E.164 format)
-        body: Raw message text
-        clinic_id: Optional clinic ID for tenant scoping
+        webhook_id: UUID string of the WhatsAppWebhook record to process
     """
     from appointments.models import Appointment
-    from notifications.models import NotificationLog
+    from notifications.models import NotificationLog, WhatsAppWebhook
     from notifications.services.twilio_service import TwilioService
     from patients.models import Patient
+
+    # Resolve webhook record
+    try:
+        webhook = WhatsAppWebhook.objects.select_related("clinic").get(id=webhook_id)
+    except WhatsAppWebhook.DoesNotExist:
+        logger.error(f"WhatsAppWebhook {webhook_id} not found")
+        return {"status": "error", "reason": "webhook_not_found"}
+
+    from_number = webhook.from_number
+    body = webhook.message_body
+    clinic = webhook.clinic
 
     command = TwilioService.parse_response(body)
 
@@ -229,8 +247,8 @@ def process_whatsapp_response(
 
     # Find the patient by phone
     patient_filter = {"phone": from_number}
-    if clinic_id:
-        patient_filter["clinic_id"] = clinic_id
+    if clinic:
+        patient_filter["clinic_id"] = clinic.id
 
     try:
         patient = Patient.objects.get(**patient_filter)
@@ -332,7 +350,7 @@ def process_whatsapp_response(
     elif command == "baja":
         # Opt-out: log the request
         NotificationLog.objects.create(
-            clinic=patient.clinic if hasattr(patient, "clinic") else None,
+            clinic=clinic,
             patient=patient,
             channel=NotificationLog.Channel.WHATSAPP,
             template="opt_out",
@@ -608,7 +626,7 @@ def consume_inventory_kit(self, appointment_id: str):
     It reads the inventory_kit from the AppointmentType and consumes each item.
     """
     from appointments.models import Appointment
-    from inventory.services.stock_service import consume_inventory_kit as _consume
+    from inventory.services.stock_service import consume_kit
 
     try:
         appt = Appointment.objects.select_related("appointment_type").get(
@@ -627,17 +645,19 @@ def consume_inventory_kit(self, appointment_id: str):
         return {"status": "skipped", "reason": "no_kit"}
 
     try:
-        success = _consume(
-            kit=kit,
+        movements = consume_kit(
             clinic_id=str(appt.clinic_id),
-            reason=f"Cita completada: {appt.appointment_type.name}",
+            kit=kit,
+            appointment_id=str(appt.id),
+            user=None,
         )
 
         logger.info(
-            f"Inventory kit consumed for appointment {appointment_id}: {len(kit)} items"
+            f"Inventory kit consumed for appointment {appointment_id}: "
+            f"{len(movements)} items"
         )
 
-        return {"status": "success", "items_consumed": len(kit)}
+        return {"status": "success", "items_consumed": len(movements)}
 
     except ValueError as e:
         logger.error(f"Inventory consumption failed for {appointment_id}: {e}")

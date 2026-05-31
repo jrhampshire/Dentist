@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useAppointments, useCreateAppointment, useAvailableSlots, useAppointmentTypes } from '@/hooks/useAppointments'
+import { Plus, ChevronLeft, ChevronRight, CheckCircle, MessageCircle } from 'lucide-react'
+import { useAppointments, useCreateAppointment, useCompleteAppointment, useAvailableSlots, useAppointmentTypes } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { formatDate, formatTime } from '@/lib/utils'
+import { formatDate, formatTime, cn } from '@/lib/utils'
+import type { Appointment, ApiError } from '@/types'
 
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 // const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8 AM to 7 PM
@@ -22,6 +23,9 @@ export function AppointmentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedDate, _setSelectedDate] = useState<string>('')
   const [selectedDentist, _setSelectedDentist] = useState('')
+  const [detailAppointment, setDetailAppointment] = useState<Appointment | null>(null)
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
+  const [completeError, setCompleteError] = useState<ApiError | null>(null)
 
   const { data: appointmentsData } = useAppointments()
   const { data: patients } = usePatients({ page: 1 })
@@ -31,6 +35,7 @@ export function AppointmentsPage() {
     dentist: selectedDentist || undefined,
   })
   const createAppointment = useCreateAppointment()
+  const completeAppointment = useCompleteAppointment()
 
   const [formData, setFormData] = useState({
     patient: '',
@@ -81,6 +86,39 @@ export function AppointmentsPage() {
     await createAppointment.mutateAsync(formData)
     setDialogOpen(false)
     setFormData({ patient: '', type: '', dentist: '', date: '', start_time: '', notes: '' })
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'scheduled': return 'Programada'
+      case 'confirmed': return 'Confirmada'
+      case 'in_progress': return 'En curso'
+      case 'completed': return 'Completada'
+      case 'cancelled': return 'Cancelada'
+      case 'no_show': return 'No asistió'
+      default: return status
+    }
+  }
+
+  const canComplete = (appt: Appointment) =>
+    (appt.status === 'scheduled' || appt.status === 'confirmed' || appt.status === 'in_progress') &&
+    !appt.inventory_consumed_at
+
+  const handleCompleteClick = (appt: Appointment) => {
+    setDetailAppointment(appt)
+    setCompleteError(null)
+    setCompleteDialogOpen(true)
+  }
+
+  const handleCompleteConfirm = async () => {
+    if (!detailAppointment) return
+    try {
+      await completeAppointment.mutateAsync(detailAppointment.id)
+      setCompleteDialogOpen(false)
+      setDetailAppointment(null)
+    } catch (err) {
+      setCompleteError(err as ApiError)
+    }
   }
 
   return (
@@ -213,10 +251,19 @@ export function AppointmentsPage() {
                     {dayAppointments.map((appt) => (
                       <div
                         key={appt.id}
-                        className={`rounded-md p-2 text-xs ${getStatusColor(appt.status)}`}
+                        className={`cursor-pointer rounded-md p-2 text-xs transition-shadow hover:shadow-md ${getStatusColor(appt.status)}`}
+                        onClick={() => { setDetailAppointment(appt); setCompleteError(null) }}
                       >
                         <p className="font-medium">{formatTime(appt.start_time)}</p>
                         <p className="truncate">{appt.patient_name}</p>
+                        {appt.whatsapp_sent && (
+                          <MessageCircle className={cn(
+                            'mt-0.5 h-3 w-3',
+                            appt.whatsapp_response === 'confirmar' ? 'text-green-500' :
+                            appt.whatsapp_response === 'cancelar' ? 'text-red-500' :
+                            'text-gray-400'
+                          )} />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -253,6 +300,126 @@ export function AppointmentsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Appointment Detail Dialog */}
+      <Dialog open={!!detailAppointment && !completeDialogOpen} onOpenChange={(open) => { if (!open) setDetailAppointment(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalle de cita</DialogTitle>
+          </DialogHeader>
+          {detailAppointment && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Paciente</Label>
+                  <p className="font-medium">{detailAppointment.patient_name}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Tipo</Label>
+                  <p className="font-medium">{detailAppointment.type_name}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Dentista</Label>
+                  <p className="font-medium">{detailAppointment.dentist_name}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Estado</Label>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(detailAppointment.status)}`}>
+                    {getStatusLabel(detailAppointment.status)}
+                  </span>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Fecha</Label>
+                  <p className="font-medium">{formatDate(detailAppointment.date)}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Hora</Label>
+                  <p className="font-medium">{formatTime(detailAppointment.start_time)} — {formatTime(detailAppointment.end_time)}</p>
+                </div>
+              </div>
+              {detailAppointment.whatsapp_sent && (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                  <MessageCircle className={cn(
+                    'h-4 w-4',
+                    detailAppointment.whatsapp_response === 'confirmar' ? 'text-green-600' :
+                    detailAppointment.whatsapp_response === 'cancelar' ? 'text-red-600' :
+                    'text-gray-400'
+                  )} />
+                  <span className={cn(
+                    'text-xs font-medium',
+                    detailAppointment.whatsapp_response === 'confirmar' ? 'text-green-700' :
+                    detailAppointment.whatsapp_response === 'cancelar' ? 'text-red-700' :
+                    'text-gray-500'
+                  )}>
+                    {detailAppointment.whatsapp_response === 'confirmar' ? 'WhatsApp Confirmado' :
+                     detailAppointment.whatsapp_response === 'cancelar' ? 'WhatsApp Cancelado' :
+                     'WhatsApp Enviado'}
+                  </span>
+                </div>
+              )}
+              {detailAppointment.notes && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Notas</Label>
+                  <p className="text-sm">{detailAppointment.notes}</p>
+                </div>
+              )}
+              {detailAppointment.inventory_consumed_at && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Inventario consumido</Label>
+                  <p className="text-sm">{formatDate(detailAppointment.inventory_consumed_at)}</p>
+                </div>
+              )}
+              {canComplete(detailAppointment) && (
+                <Button className="w-full" onClick={() => handleCompleteClick(detailAppointment)}>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Completar cita
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Confirmation Dialog */}
+      <Dialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Completar cita</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              ¿Consumir kit de inventario y marcar cita como completada?
+            </p>
+            {detailAppointment && (
+              <p className="text-sm font-medium">
+                Paciente: {detailAppointment.patient_name} — {detailAppointment.type_name}
+              </p>
+            )}
+            {completeError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-800">{completeError.message}</p>
+                {completeError.details && Array.isArray(completeError.details) && completeError.details.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {(completeError.details as Array<{ item_name: string; available: number; required: number }>).map((d, i) => (
+                      <li key={i} className="text-xs text-red-700">
+                        {d.item_name}: disponible {d.available}, requiere {d.required}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setCompleteDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" onClick={handleCompleteConfirm} disabled={completeAppointment.isPending}>
+                {completeAppointment.isPending ? 'Completando...' : 'Confirmar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
