@@ -365,7 +365,6 @@ def create_invoice(db, create_clinic, create_patient):
                     "iva_rate": 0.16,
                 }
             ],
-            status=status,
         )
 
     return _create

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Edit2, Eye } from 'lucide-react'
 import { usePatients, useCreatePatient, useUpdatePatient } from '@/hooks/usePatients'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { formatDate, formatPhone } from '@/lib/utils'
 
 export function PatientsPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -177,7 +179,11 @@ export function PatientsPage() {
                     <TableCell>{formatDate(patient.date_of_birth)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => navigate(`/patients/${patient.id}`)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(patient)}>

@@ -3,8 +3,13 @@ Signals for automatic audit logging.
 
 Connects to post_save and post_delete signals to capture
 AuditLog entries for all model changes.
+
+NOM-024 compliance: TextField content is hashed (SHA-256) instead of
+stored in plain text. This proves content integrity without storing
+full clinical notes in the audit log.
 """
 
+import hashlib
 import logging
 from typing import Any
 
@@ -127,14 +132,32 @@ def audit_post_delete(sender: Any, instance: Any, **kwargs: Any) -> None:
 
 
 def _get_serializable_fields(instance: Any) -> dict:
-    """Get a serializable dict of model fields (excluding sensitive/binary fields)."""
+    """Get a serializable dict of model fields.
+
+    NOM-024 compliance:
+    - BinaryField values are skipped (signature_blob, passwords)
+    - TextField values are replaced with a SHA-256 hash (first 16 chars)
+      This proves content integrity without storing full clinical notes
+      in the audit log. The hash is stored as ``{field_name}_hash``.
+    """
     data = {}
     for field in instance._meta.fields:
         value = getattr(instance, field.attname, None)
-        # Skip binary fields, passwords, and large text
-        if field.get_internal_type() in ("BinaryField", "TextField"):
-            if field.name in ("password", "content", "signature_blob"):
-                continue
+
+        # BinaryField — skip entirely (signature blobs, password hashes)
+        if field.get_internal_type() == "BinaryField":
+            continue
+
+        # TextField — store content hash for NOM-024 integrity verification
+        if field.get_internal_type() == "TextField":
+            if field.name == "password":
+                continue  # Never log passwords, even hashed
+            if value is not None:
+                data[f"{field.name}_hash"] = hashlib.sha256(
+                    str(value).encode("utf-8")
+                ).hexdigest()[:16]
+            continue  # Don't fall through to regular serialization
+
         if value is not None:
             data[field.name] = (
                 str(value)

@@ -5,12 +5,14 @@ Routes:
 - /api/v1/patients/              — PatientViewSet (CRUD + search)
 - /api/v1/patients/{id}/notes/   — ClinicalNoteViewSet (CRUD + sign)
 - /api/v1/patients/{id}/consents/ — PatientConsentViewSet (CRUD + sign)
+- /api/v1/patients/audit-trail/  — AuditTrailViewSet (NOM-024 read-only)
 """
 
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from patients.views import (
+    AuditTrailViewSet,
     ClinicalNoteViewSet,
     PatientConsentViewSet,
     PatientViewSet,
@@ -57,5 +59,16 @@ urlpatterns = [
         "<uuid:patient_id>/consents/<uuid:pk>/sign/",
         PatientConsentViewSet.as_view({"post": "sign"}),
         name="patient-consents-sign",
+    ),
+    # Audit trail (NOM-024 compliance)
+    path(
+        "audit-trail/",
+        AuditTrailViewSet.as_view({"get": "list"}),
+        name="audit-trail-list",
+    ),
+    path(
+        "audit-trail/<uuid:pk>/",
+        AuditTrailViewSet.as_view({"get": "retrieve"}),
+        name="audit-trail-detail",
     ),
 ]
