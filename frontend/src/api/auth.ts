@@ -1,9 +1,12 @@
 import apiClient from './client'
-import type { User, AuthTokens, LoginCredentials } from '@/types'
+import type { User, AuthTokens, LoginCredentials, RegisterCredentials } from '@/types'
 
 export const authApi = {
   login: (credentials: LoginCredentials) =>
     apiClient.post<AuthTokens>('/auth/login/', credentials).then((r) => r.data),
+
+  register: (credentials: RegisterCredentials) =>
+    apiClient.post<AuthTokens>('/auth/register/', credentials).then((r) => r.data),
 
   refresh: (refreshToken: string) =>
     apiClient.post<AuthTokens>('/auth/refresh/', { refresh_token: refreshToken }).then((r) => r.data),

@@ -197,6 +197,7 @@ services:
       - media_volume:/app/media:ro
     depends_on:
       - django
+      - frontend-prod
 
   # ---------------------------------------------------------------------------
   # Frontend Dev — Vite HMR (development only)
@@ -218,6 +219,22 @@ services:
     depends_on:
       - django
     command: npm run dev -- --host 0.0.0.0 --port 3000
+
+  # ---------------------------------------------------------------------------
+  # Frontend Production — Built SPA served by nginx
+  # ---------------------------------------------------------------------------
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: dentist-frontend-prod
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - django
 
 # =============================================================================
 # Volumes

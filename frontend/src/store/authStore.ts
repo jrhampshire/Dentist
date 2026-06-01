@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { User, AuthTokens } from '@/types'
+import type { User, AuthTokens, RegisterCredentials } from '@/types'
 import { authApi } from '@/api/auth'
 
 interface AuthState {
@@ -13,6 +13,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: { email: string; password: string }) => Promise<void>
+  register: (credentials: RegisterCredentials) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
   fetchMe: () => Promise<void>
@@ -46,6 +47,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Error al iniciar sesión',
+      })
+      throw error
+    }
+  },
+
+  register: async (credentials) => {
+    set({ isLoading: true, error: null })
+    try {
+      const tokens: AuthTokens = await authApi.register(credentials)
+
+      localStorage.setItem('access_token', tokens.access_token)
+      localStorage.setItem('refresh_token', tokens.refresh_token)
+
+      set({
+        user: tokens.user,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        isAuthenticated: true,
+        isLoading: false,
+      })
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Error al registrar',
       })
       throw error
     }

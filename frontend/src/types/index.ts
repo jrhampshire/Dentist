@@ -39,6 +39,15 @@ export interface LoginCredentials {
   password: string
 }
 
+export interface RegisterCredentials {
+  email: string
+  password: string
+  first_name: string
+  last_name: string
+  phone?: string
+  accept_terms: boolean
+}
+
 // Patient types
 export interface Patient {
   id: string

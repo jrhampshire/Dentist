@@ -24,7 +24,6 @@ Dockerfile
 Dockerfile.dev
 docker-compose*.yml
 .dockerignore
-nginx.conf
 
 # Documentation
 *.md
