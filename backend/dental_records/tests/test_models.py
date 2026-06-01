@@ -38,25 +38,25 @@ from dental_records.models import (
 
 
 @pytest.fixture
-def clinic_a(django_db_setup, django_db_blocker):
+def clinic_a(db):
     """Create clinic A for tenant isolation tests."""
-    from apps.clinics.models import Clinic
+    from clinics.models import Clinic
 
-    return Clinic.objects.create(name="Clínica A", subdomain="clinica-a")
+    return Clinic.objects.create(name="Clínica A", rfc="XAXX01010100A")
 
 
 @pytest.fixture
-def clinic_b(django_db_setup, django_db_blocker):
+def clinic_b(db):
     """Create clinic B for tenant isolation tests."""
-    from apps.clinics.models import Clinic
+    from clinics.models import Clinic
 
-    return Clinic.objects.create(name="Clínica B", subdomain="clinica-b")
+    return Clinic.objects.create(name="Clínica B", rfc="XAXX01010100B")
 
 
 @pytest.fixture
-def user_a(django_db_blocker):
+def user_a(db):
     """Create a dentist user for clinic A."""
-    from apps.accounts.models import User
+    from accounts.models import User
 
     return User.objects.create_user(
         email="dentist_a@test.com",
@@ -68,9 +68,9 @@ def user_a(django_db_blocker):
 
 
 @pytest.fixture
-def user_b(django_db_blocker):
+def user_b(db):
     """Create a dentist user for clinic B."""
-    from apps.accounts.models import User
+    from accounts.models import User
 
     return User.objects.create_user(
         email="dentist_b@test.com",
@@ -684,6 +684,8 @@ class TestTreatmentPlan:
 
     def test_procedure_appointment_linking(self, patient_a, user_a, clinic_a):
         """Should link a procedure to an appointment."""
+        from datetime import time
+
         from appointments.models import Appointment, AppointmentType
 
         appt_type = AppointmentType.objects.create(
@@ -695,7 +697,7 @@ class TestTreatmentPlan:
             appointment_type=appt_type,
             dentist=user_a,
             date=date(2026, 6, 1),
-            start_time="09:00",
+            start_time=time(9, 0),
             created_by=user_a,
         )
         plan = TreatmentPlan.objects.create(

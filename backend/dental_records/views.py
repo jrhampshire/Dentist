@@ -85,6 +85,7 @@ class DentalRecordEntryViewSet(
 
     permission_classes = [IsAuthenticated]
     serializer_class = DentalRecordEntrySerializer
+    pagination_class = None
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "tooth_fdi"]
     ordering = ["-created_at"]
@@ -173,6 +174,7 @@ class ToothStateViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     permission_classes = [IsAuthenticated]
     serializer_class = ToothStateSerializer
+    pagination_class = None
 
     def get_queryset(self):
         patient_id = _get_patient_id(self.kwargs)
@@ -192,6 +194,7 @@ class MedicalHistoryViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
     """
@@ -210,6 +213,7 @@ class MedicalHistoryViewSet(
 
     permission_classes = [IsAuthenticated]
     serializer_class = MedicalHistorySerializer
+    pagination_class = None
 
     def get_queryset(self):
         patient_id = _get_patient_id(self.kwargs)
@@ -246,11 +250,6 @@ class MedicalHistoryViewSet(
     def list_versions(self, request, *args, **kwargs):
         """List all versions (active and historical) for the patient."""
         queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -281,6 +280,7 @@ class VitalSignsViewSet(
 
     permission_classes = [IsAuthenticated]
     serializer_class = VitalSignsSerializer
+    pagination_class = None
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["recorded_at"]
     ordering = ["-recorded_at"]
@@ -347,6 +347,7 @@ class PatientImageViewSet(
     """
 
     permission_classes = [IsAuthenticated]
+    pagination_class = None
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["uploaded_at"]
     ordering = ["-uploaded_at"]
@@ -441,6 +442,7 @@ class TreatmentPlanViewSet(
     """
 
     permission_classes = [IsAuthenticated]
+    pagination_class = None
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering_fields = ["created_at", "name"]
     ordering = ["-created_at"]

@@ -13,6 +13,7 @@ Covers all endpoints across 6 capabilities:
 """
 
 import io
+import uuid
 from datetime import date, timedelta
 
 import pytest
@@ -72,6 +73,161 @@ def _make_pdf_bytes():
 @pytest.fixture
 def api():
     return APIClient()
+
+
+# ── Fixtures (inline copies from tests/conftest.py for discoverability) ──
+
+
+@pytest.fixture
+def make_jwt_token():
+    """Generate a JWT access token for testing."""
+    import jwt as pyjwt
+    from datetime import timedelta
+
+    from django.conf import settings
+    from django.utils import timezone
+
+    def _make(user, clinic_id=None):
+        now = timezone.now()
+        payload = {
+            "user_id": str(user.pk),
+            "clinic_id": str(clinic_id or user.clinic_id),
+            "role": user.role,
+            "exp": now + timedelta(minutes=15),
+            "iat": now,
+        }
+        return pyjwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
+    return _make
+
+
+@pytest.fixture
+def auth_headers(make_jwt_token):
+    """Generate Authorization headers for a user."""
+
+    def _headers(user, clinic_id=None):
+        token = make_jwt_token(user, clinic_id)
+        return {"HTTP_AUTHORIZATION": f"Bearer {token}"}
+
+    return _headers
+
+
+@pytest.fixture
+def create_clinic(db):
+    """Create a Clinic instance."""
+
+    def _create(name="Test Clinic", rfc=None, status="active", email_verified=True):
+        from clinics.models import Clinic
+
+        return Clinic.objects.create(
+            name=name,
+            rfc=rfc or f"XAXX{uuid.uuid4().hex[:6].upper()}",
+            email=f"{name.lower().replace(' ', '.')}@test.com",
+            phone="+5215512345678",
+            status=status,
+            email_verified=email_verified,
+        )
+
+    return _create
+
+
+@pytest.fixture
+def create_user(db, create_clinic):
+    """Create a User instance."""
+
+    def _create(
+        email=None,
+        password="testpass123",
+        role="admin",
+        clinic=None,
+        first_name="Test",
+        last_name="User",
+        is_active=True,
+    ):
+        from accounts.models import User
+
+        if clinic is None:
+            clinic = create_clinic()
+
+        return User.objects.create_user(
+            email=email or f"{role}_{uuid.uuid4().hex[:6]}@test.com",
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            clinic=clinic,
+            is_active=is_active,
+        )
+
+    return _create
+
+
+@pytest.fixture
+def create_patient(db, create_clinic):
+    """Create a Patient instance."""
+
+    def _create(clinic=None, first_name="Juan", last_name="Pérez", phone=None):
+        from patients.models import Patient
+
+        if clinic is None:
+            clinic = create_clinic()
+
+        return Patient.objects.create(
+            clinic=clinic,
+            first_name=first_name,
+            last_name=last_name,
+            second_last_name="García",
+            email=f"{first_name.lower()}.{last_name.lower()}@test.com",
+            phone=phone or f"55{uuid.uuid4().hex[:8]}",
+            date_of_birth=date(1990, 1, 1),
+        )
+
+    return _create
+
+
+@pytest.fixture
+def clinic_users(db, create_user, create_clinic):
+    """Create users for two clinics: admin + dentist per clinic."""
+    clinic_a = create_clinic(name="Clinic A", rfc="XAXX01010100A")
+    clinic_b = create_clinic(name="Clinic B", rfc="XAXX01010100B")
+
+    admin_a = create_user(
+        email="admin_a@test.com",
+        role="admin",
+        clinic=clinic_a,
+        first_name="Admin",
+        last_name="A",
+    )
+    dentist_a = create_user(
+        email="dentist_a@test.com",
+        role="dentista",
+        clinic=clinic_a,
+        first_name="Dr.",
+        last_name="A",
+    )
+    admin_b = create_user(
+        email="admin_b@test.com",
+        role="admin",
+        clinic=clinic_b,
+        first_name="Admin",
+        last_name="B",
+    )
+    dentist_b = create_user(
+        email="dentist_b@test.com",
+        role="dentista",
+        clinic=clinic_b,
+        first_name="Dr.",
+        last_name="B",
+    )
+
+    return {
+        "clinic_a": clinic_a,
+        "clinic_b": clinic_b,
+        "admin_a": admin_a,
+        "dentist_a": dentist_a,
+        "admin_b": admin_b,
+        "dentist_b": dentist_b,
+    }
 
 
 @pytest.fixture

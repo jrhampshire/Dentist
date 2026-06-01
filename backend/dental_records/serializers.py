@@ -461,7 +461,7 @@ class PatientImageListSerializer(serializers.ModelSerializer):
 class PatientImageUploadSerializer(serializers.ModelSerializer):
     """Serializer for PatientImage upload (handles multipart file)."""
 
-    image = serializers.ImageField(required=True)
+    image = serializers.FileField(required=True)
     image_type = serializers.ChoiceField(
         choices=[
             ("photo", "Foto Clínica"),
@@ -472,15 +472,45 @@ class PatientImageUploadSerializer(serializers.ModelSerializer):
             ("other", "Otro"),
         ]
     )
+    image_type_display = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = PatientImage
         fields = [
+            "id",
             "image",
             "image_type",
+            "image_type_display",
             "tooth_fdi",
             "description",
+            "file_size",
+            "content_type",
+            "image_url",
+            "thumbnail_url",
         ]
+        read_only_fields = [
+            "id",
+            "image_type_display",
+            "file_size",
+            "content_type",
+            "image_url",
+            "thumbnail_url",
+        ]
+
+    def get_image_type_display(self, obj: PatientImage) -> str:
+        return obj.get_image_type_display()
+
+    def get_image_url(self, obj: PatientImage) -> str | None:
+        if obj.image:
+            return f"/api/v1/dental-records/patients/{obj.patient_id}/images/{obj.id}/file/"
+        return None
+
+    def get_thumbnail_url(self, obj: PatientImage) -> str | None:
+        if obj.thumbnail:
+            return f"/api/v1/dental-records/patients/{obj.patient_id}/images/{obj.id}/thumbnail/"
+        return None
 
     def validate_image(self, value):
         """Validate file size (max 20MB) and file extension."""
