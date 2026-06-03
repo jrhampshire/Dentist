@@ -35,14 +35,19 @@ class CursorPaginator(DRFCursorPagination):
     page_size_query_param = "page_size"
     ordering = "-created_at"  # Default ordering for cursor pagination
 
-    def get_paginated_response(self, queryset: Any, serializer: Any) -> Response:
-        """Return a standardized paginated response."""
+    def get_paginated_response(self, data: Any) -> Response:
+        """Return a standardized paginated response.
+
+        NOTE: Signature matches DRF's GenericAPIView which calls
+        self.paginator.get_paginated_response(data) where `data` is
+        the already-serialized result list.
+        """
         return Response(
             OrderedDict(
                 [
                     ("next", self.get_next_link()),
                     ("previous", self.get_previous_link()),
-                    ("results", serializer),
+                    ("results", data),
                 ]
             )
         )
