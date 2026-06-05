@@ -1,120 +1,110 @@
-import { useState } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
-import { useAppointmentTypes, useDeleteAppointmentType } from '@/hooks/useAppointments'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { AppointmentType } from '@/types'
-import { AppointmentTypeDialog } from './Settings/AppointmentTypeDialog'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Building2, Receipt, Link2, CreditCard, CalendarClock } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Card, CardContent } from '@/components/ui/card'
+import { AppointmentTypesTab } from './Settings/AppointmentTypesTab'
+
+const TABS = [
+  { value: 'general', label: 'Información General', icon: Building2 },
+  { value: 'fiscal', label: 'Datos Fiscales', icon: Receipt },
+  { value: 'integrations', label: 'Integraciones', icon: Link2 },
+  { value: 'plan', label: 'Plan y Suscripción', icon: CreditCard },
+  { value: 'types', label: 'Tipos de Cita', icon: CalendarClock },
+] as const
+
+type TabValue = (typeof TABS)[number]['value']
+
+function PlaceholderTab({ title, description }: { title: string; description: string }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center justify-center py-12">
+        <div className="rounded-full bg-muted p-4 mb-4">
+          <Building2 className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-semibold mb-1">{title}</h3>
+        <p className="text-sm text-muted-foreground text-center max-w-md">
+          {description}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
 
 export function SettingsPage() {
-  const { data: types, isLoading } = useAppointmentTypes()
-  const deleteType = useDeleteAppointmentType()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingType, setEditingType] = useState<AppointmentType | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabFromUrl = searchParams.get('tab') as TabValue | null
+  const validTab = TABS.find((t) => t.value === tabFromUrl)?.value ?? 'general'
+  const [activeTab, setActiveTab] = useState<TabValue>(validTab)
 
-  const handleEdit = (type: AppointmentType) => {
-    setEditingType(type)
-    setDialogOpen(true)
-  }
-
-  const handleNew = () => {
-    setEditingType(null)
-    setDialogOpen(true)
-  }
-
-  const handleDelete = async (id: string) => {
-    if (confirm('¿Eliminar este tipo de cita?')) {
-      await deleteType.mutateAsync(id)
+  // Sync URL -> state on mount and popstate
+  useEffect(() => {
+    const currentTab = searchParams.get('tab') as TabValue | null
+    if (currentTab && TABS.some((t) => t.value === currentTab)) {
+      setActiveTab(currentTab)
     }
-  }
+  }, [searchParams])
 
-  const handleDialogClose = (open: boolean) => {
-    setDialogOpen(open)
-    if (!open) setEditingType(null)
-  }
+  // Sync state -> URL
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value as TabValue)
+      setSearchParams({ tab: value }, { replace: true })
+    },
+    [setSearchParams],
+  )
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Configuración</h2>
-          <p className="text-muted-foreground">
-            Gestiona los tipos de cita y configuraciones de la clínica
-          </p>
-        </div>
-        <Button onClick={handleNew}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo tipo de cita
-        </Button>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Configuración</h2>
+        <p className="text-muted-foreground">
+          Administra la información de tu clínica, datos fiscales, integraciones y más
+        </p>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Tipos de cita</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Duración (min)</TableHead>
-                  <TableHead>Componentes del Kit</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {types?.map((type) => (
-                  <TableRow key={type.id}>
-                    <TableCell className="font-medium">{type.name}</TableCell>
-                    <TableCell>{type.duration_minutes}</TableCell>
-                    <TableCell>
-                      {type.inventory_kit && type.inventory_kit.length > 0
-                        ? `${type.inventory_kit.length} componente(s)`
-                        : 'Sin kit'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(type)}>
-                          <Pencil className="mr-1 h-3 w-3" />
-                          Editar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(type.id)}
-                          disabled={deleteType.isPending}
-                        >
-                          <Trash2 className="mr-1 h-3 w-3" />
-                          Eliminar
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {(!types || types.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      No hay tipos de cita registrados
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="w-full flex-wrap h-auto">
+          {TABS.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
+              <tab.icon className="h-4 w-4" />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      <AppointmentTypeDialog
-        open={dialogOpen}
-        onOpenChange={handleDialogClose}
-        type={editingType}
-      />
+        <TabsContent value="general">
+          <PlaceholderTab
+            title="Información General"
+            description="Configura los datos básicos de tu clínica: nombre, RFC, teléfono y dirección. Esta sección estará disponible próximamente."
+          />
+        </TabsContent>
+
+        <TabsContent value="fiscal">
+          <PlaceholderTab
+            title="Datos Fiscales / CFDI 4.0"
+            description="Administra tu configuración fiscal: razón social, régimen fiscal y certificados CSD para la facturación electrónica. Esta sección estará disponible próximamente."
+          />
+        </TabsContent>
+
+        <TabsContent value="integrations">
+          <PlaceholderTab
+            title="Integraciones"
+            description="Conecta tu clínica con Google Calendar, Gmail y WhatsApp para automatizar recordatorios y sincronizar citas. Esta sección estará disponible próximamente."
+          />
+        </TabsContent>
+
+        <TabsContent value="plan">
+          <PlaceholderTab
+            title="Plan y Suscripción"
+            description="Consulta los detalles de tu plan actual, timbres CFDI disponibles y fechas de suscripción. Esta sección estará disponible próximamente."
+          />
+        </TabsContent>
+
+        <TabsContent value="types">
+          <AppointmentTypesTab />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
