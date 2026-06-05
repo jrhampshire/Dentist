@@ -202,22 +202,38 @@ export interface AvailableSlot {
   dentist: string
 }
 
+// Clinic types
+export interface Clinic {
+  id: string
+  name: string
+  rfc: string
+  email: string
+  phone: string
+  address: Record<string, unknown>
+  plan: 'free' | 'basic' | 'pro'
+  status: 'pending' | 'active' | 'suspended' | 'cancelled'
+  email_verified: boolean
+  onboarding_completed: boolean
+  subscription_start: string | null
+  subscription_end: string | null
+  stamps_remaining: number
+  settings: Record<string, unknown>
+  onboarding_progress: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
 // Invoice types
 export interface FiscalConfig {
-  clinic: string
+  id: string
   rfc: string
   razon_social: string
   regimen_fiscal: string
-  fiscal_address: {
-    street: string
-    city: string
-    state: string
-    postal_code: string
-    country: string
-  }
-  csd_cert_uploaded: boolean
-  is_validated: boolean
+  fiscal_address: Record<string, unknown>
+  csd_cert_path: string
+  csd_key_path: string
   email: string
+  is_validated: boolean
 }
 
 export interface Invoice {
