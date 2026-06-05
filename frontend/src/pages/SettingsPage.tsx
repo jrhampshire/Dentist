@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Building2, Receipt, Link2, CreditCard, CalendarClock } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Card, CardContent } from '@/components/ui/card'
 import { GeneralInfoTab } from './Settings/GeneralInfoTab'
 import { FiscalConfigTab } from './Settings/FiscalConfigTab'
+import { IntegrationsTab } from './Settings/IntegrationsTab'
+import { PlanSubscriptionTab } from './Settings/PlanSubscriptionTab'
 import { AppointmentTypesTab } from './Settings/AppointmentTypesTab'
 
 const TABS = [
@@ -16,22 +17,6 @@ const TABS = [
 ] as const
 
 type TabValue = (typeof TABS)[number]['value']
-
-function PlaceholderTab({ title, description }: { title: string; description: string }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center py-12">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <Building2 className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-semibold mb-1">{title}</h3>
-        <p className="text-sm text-muted-foreground text-center max-w-md">
-          {description}
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -84,17 +69,11 @@ export function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="integrations">
-          <PlaceholderTab
-            title="Integraciones"
-            description="Conecta tu clínica con Google Calendar, Gmail y WhatsApp para automatizar recordatorios y sincronizar citas. Esta sección estará disponible próximamente."
-          />
+          <IntegrationsTab />
         </TabsContent>
 
         <TabsContent value="plan">
-          <PlaceholderTab
-            title="Plan y Suscripción"
-            description="Consulta los detalles de tu plan actual, timbres CFDI disponibles y fechas de suscripción. Esta sección estará disponible próximamente."
-          />
+          <PlanSubscriptionTab />
         </TabsContent>
 
         <TabsContent value="types">
