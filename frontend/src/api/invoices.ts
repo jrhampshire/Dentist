@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Invoice, FiscalConfig, PaginatedResponse } from '@/types'
+import type { Invoice, PaginatedResponse } from '@/types'
 
 export const invoicesApi = {
   // CRUD Invoices
@@ -29,14 +29,4 @@ export const invoicesApi = {
 
   downloadXml: (id: string) =>
     apiClient.get(`/invoices/${id}/xml/`, { responseType: 'blob' }).then((r) => r.data),
-
-  // Fiscal Config
-  getFiscalConfig: () =>
-    apiClient.get<FiscalConfig>('/fiscal-config/').then((r) => r.data),
-
-  updateFiscalConfig: (data: Partial<FiscalConfig>) =>
-    apiClient.patch<FiscalConfig>('/fiscal-config/', data).then((r) => r.data),
-
-  validateCsd: () =>
-    apiClient.post<{ valid: boolean; message: string }>('/fiscal-config/validate-csd/').then((r) => r.data),
 }

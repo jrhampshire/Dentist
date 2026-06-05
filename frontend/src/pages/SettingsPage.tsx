@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { Building2, Receipt, Link2, CreditCard, CalendarClock } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
+import { GeneralInfoTab } from './Settings/GeneralInfoTab'
+import { FiscalConfigTab } from './Settings/FiscalConfigTab'
 import { AppointmentTypesTab } from './Settings/AppointmentTypesTab'
 
 const TABS = [
@@ -74,17 +76,11 @@ export function SettingsPage() {
         </TabsList>
 
         <TabsContent value="general">
-          <PlaceholderTab
-            title="Información General"
-            description="Configura los datos básicos de tu clínica: nombre, RFC, teléfono y dirección. Esta sección estará disponible próximamente."
-          />
+          <GeneralInfoTab />
         </TabsContent>
 
         <TabsContent value="fiscal">
-          <PlaceholderTab
-            title="Datos Fiscales / CFDI 4.0"
-            description="Administra tu configuración fiscal: razón social, régimen fiscal y certificados CSD para la facturación electrónica. Esta sección estará disponible próximamente."
-          />
+          <FiscalConfigTab />
         </TabsContent>
 
         <TabsContent value="integrations">
