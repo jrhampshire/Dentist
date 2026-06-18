@@ -2,6 +2,9 @@
 .atl/
 .pi/
 
+# Windows reserved name
+nul
+
 # Python
 __pycache__/
 *.py[cod]

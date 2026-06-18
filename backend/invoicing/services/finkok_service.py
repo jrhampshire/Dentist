@@ -55,6 +55,7 @@ _NON_RETRYABLE_ERRORS = frozenset(
         "certificado no válido",
         "certificado caduco",
         "XML mal formado",
+        "UUID repetido",
         "no encontrado",
         "no válido",
     }

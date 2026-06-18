@@ -9,7 +9,7 @@ Covers:
 - Date range filtering
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -92,8 +92,9 @@ class TestDashboardTenantIsolation:
         assert response.status_code == 200
         data = response.json()
 
-        # Clinic A has 1 patient, 1 appointment today
-        assert data["patients_total"] == 1
+        # Clinic A has 2 patients (1 explicit + 1 from create_appointment fixture)
+        # and 1 appointment today
+        assert data["patients_total"] == 2
         assert data["appointments_today"] == 1
 
         # Upcoming should only have clinic A's appointment (since status=scheduled)
