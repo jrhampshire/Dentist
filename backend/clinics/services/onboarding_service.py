@@ -252,8 +252,9 @@ class OnboardingService:
             clinic.email_verification_expires,
         )
 
-        # TODO: Implement actual email sending via Celery task
-        # from celery_app.tasks import send_verification_email_task
-        # send_verification_email_task.delay(clinic.id, token)
+        # Send verification email via Celery task
+        from celery_app.tasks import send_verification_email_task
+
+        send_verification_email_task.delay(str(clinic.id), token)
 
         return True

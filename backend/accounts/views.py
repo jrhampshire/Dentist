@@ -17,7 +17,6 @@ Views:
 
 import logging
 import secrets
-from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -28,7 +27,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import RefreshToken
 from accounts.serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
@@ -191,7 +189,10 @@ class ForgotPasswordView(APIView):
                 update_fields=["invitation_token", "invitation_expires", "updated_at"]
             )
 
-            # TODO: Send reset email via Celery task
+            # Send reset email via Celery task
+            from celery_app.tasks import send_password_reset_email
+
+            send_password_reset_email.delay(str(user.id))
             logger.info("Password reset requested for: %s", email)
         except User.DoesNotExist:
             pass  # Don't reveal whether email exists

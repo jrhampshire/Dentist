@@ -9,11 +9,13 @@ Tasks:
 - mark_expired_items: Auto-mark expired inventory items
 - send_stamp_reminder: Weekly reminder about CFDI stamp balance
 - consume_inventory_kit: Deduct inventory kit items on appointment completion
+- send_password_reset_email: Send password reset email to user
+- send_verification_email_task: Send clinic email verification
 
 Queue mapping:
 - high: send_appointment_reminders, process_whatsapp_response
 - default: check_expiration_alerts, check_low_stock_alerts, consume_inventory_kit
-- low: mark_expired_items, send_stamp_reminder
+- low: mark_expired_items, send_stamp_reminder, send_password_reset_email, send_verification_email_task
 """
 
 import logging
@@ -21,7 +23,7 @@ from datetime import date, timedelta
 
 from celery import shared_task
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger("notifications.services")
@@ -667,3 +669,153 @@ def consume_inventory_kit(self, appointment_id: str):
             f"Unexpected error consuming inventory for {appointment_id}: {e}"
         )
         return {"status": "error", "reason": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Email Tasks
+# ---------------------------------------------------------------------------
+
+
+@shared_task(
+    bind=True,
+    max_retries=2,
+    default_retry_delay=180,
+    queue="low",
+)
+def send_password_reset_email(self, user_id: str):
+    """
+    Send password reset email to a user.
+
+    Triggered by ForgotPasswordView after generating a reset token.
+    In development mode, logs the reset URL. In production, integrate with
+    an email provider (SendGrid, AWS SES, etc.).
+
+    Args:
+        user_id: UUID of the User who requested password reset.
+    """
+    from django.conf import settings
+
+    from accounts.models import User
+
+    try:
+        user = User.objects.select_related("clinic").get(id=user_id, is_deleted=False)
+    except User.DoesNotExist:
+        logger.error(f"Password reset: user {user_id} not found")
+        return {"status": "error", "reason": "user_not_found"}
+
+    if not user.invitation_token:
+        logger.warning(f"Password reset: user {user_id} has no reset token")
+        return {"status": "skipped", "reason": "no_token"}
+
+    reset_url = (
+        f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}"
+        f"/reset-password?token={user.invitation_token}&email={user.email}"
+    )
+
+    # In dev mode, log the reset link. In production, send via email provider.
+    if getattr(settings, "DEBUG", True):
+        logger.info(
+            "PASSWORD RESET EMAIL (dev mode):\n"
+            "  To: %s\n"
+            "  URL: %s\n"
+            "  Token expires: %s",
+            user.email,
+            reset_url,
+            user.invitation_expires,
+        )
+    else:
+        _send_email(
+            to_email=user.email,
+            subject="Restablecer contraseña — ClínicaSaaS",
+            html_body=(
+                f"<p>Hola {user.first_name},</p>"
+                f"<p>Hemos recibido una solicitud para restablecer tu contraseña.</p>"
+                f"<p><a href='{reset_url}'>Haz clic aquí</a> para crear una nueva "
+                f"contraseña. Este enlace expira en 1 hora.</p>"
+                f"<p>Si no solicitaste este cambio, ignora este correo.</p>"
+            ),
+        )
+
+    logger.info(f"Password reset email sent for user {user.email}")
+
+    return {"status": "sent", "user_id": str(user.id)}
+
+
+@shared_task(
+    bind=True,
+    max_retries=2,
+    default_retry_delay=180,
+    queue="low",
+)
+def send_verification_email_task(self, clinic_id: str, token: str):
+    """
+    Send email verification link to a newly registered clinic admin.
+
+    Triggered by OnboardingService.send_verification_email() after clinic registration.
+    In development mode, logs the verification URL. In production, integrate with
+    an email provider (SendGrid, AWS SES, etc.).
+
+    Args:
+        clinic_id: UUID of the Clinic.
+        token: Email verification token.
+    """
+    from django.conf import settings
+
+    from clinics.models import Clinic
+
+    try:
+        clinic = Clinic.objects.get(id=clinic_id, is_deleted=False)
+    except Clinic.DoesNotExist:
+        logger.error(f"Verification email: clinic {clinic_id} not found")
+        return {"status": "error", "reason": "clinic_not_found"}
+
+    if clinic.email_verified:
+        logger.info(f"Verification email: clinic {clinic_id} already verified")
+        return {"status": "skipped", "reason": "already_verified"}
+
+    verification_url = (
+        f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}"
+        f"/verify-email?token={token}&email={clinic.email}"
+    )
+
+    # In dev mode, log the verification link. In production, send via email provider.
+    if getattr(settings, "DEBUG", True):
+        logger.info(
+            "VERIFICATION EMAIL (dev mode):\n"
+            "  To: %s\n"
+            "  URL: %s\n"
+            "  Token expires: %s",
+            clinic.email,
+            verification_url,
+            clinic.email_verification_expires,
+        )
+    else:
+        _send_email(
+            to_email=clinic.email,
+            subject="Verifica tu cuenta — ClínicaSaaS",
+            html_body=(
+                f"<p>Bienvenido a ClínicaSaaS,</p>"
+                f"<p>Tu clínica <strong>{clinic.name}</strong> ha sido registrada.</p>"
+                f"<p><a href='{verification_url}'>Verifica tu dirección de email</a> "
+                f"para activar tu cuenta.</p>"
+            ),
+        )
+
+    logger.info(f"Verification email sent for clinic {clinic.email}")
+
+    return {"status": "sent", "clinic_id": str(clinic.id)}
+
+
+def _send_email(*, to_email: str, subject: str, html_body: str) -> bool:
+    """
+    Stub for sending emails through a provider (SendGrid, AWS SES, etc.).
+
+    Replace this with your actual email provider integration.
+    """
+    logger.info(
+        "EMAIL STUB (production mode):\n" "  To: %s\n" "  Subject: %s\n" "  Body: %s",
+        to_email,
+        subject,
+        html_body[:200],
+    )
+    return True
