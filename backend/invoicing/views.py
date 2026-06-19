@@ -9,8 +9,6 @@ All views enforce tenant isolation via RLS (clinic_id from JWT).
 """
 
 import logging
-from decimal import Decimal
-from typing import Any
 
 from django.conf import settings
 from django.utils import timezone
@@ -24,7 +22,6 @@ from invoicing.serializers import (
     FiscalConfigSerializer,
     InvoiceCreateSerializer,
     InvoiceSerializer,
-    InvoiceStampSerializer,
 )
 from core.permissions import IsAdminOrReadOnly
 
@@ -311,6 +308,21 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Check stamp balance before attempting to stamp
+        clinic = request.user.clinic
+        if clinic.stamps_remaining < 1:
+            return Response(
+                {
+                    "error": "no_stamps",
+                    "message": (
+                        "No tienes timbres disponibles. "
+                        "Recarga tu saldo de timbres CFDI para continuar facturando."
+                    ),
+                    "stamps_remaining": 0,
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
         # Mark as pending
         invoice.status = Invoice.Status.PENDING_STAMP
         invoice.save(update_fields=["status", "updated_at"])
@@ -367,6 +379,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                     xml_content=xml_content,
                 )
 
+                # Decrement stamp balance (stamps_remaining >= 1 was checked above)
+                clinic.stamps_remaining -= 1
+                clinic.save(update_fields=["stamps_remaining", "updated_at"])
+
                 return Response(
                     {
                         "message": "Factura timbrada exitosamente.",
@@ -374,6 +390,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                         "stamp_date": result.stamp_date,
                         "xml_url": invoice.xml_url,
                         "pdf_url": invoice.pdf_url,
+                        "stamps_remaining": clinic.stamps_remaining,
                     }
                 )
             else:

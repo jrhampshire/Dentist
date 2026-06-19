@@ -11,7 +11,6 @@ Provides:
 import uuid
 from datetime import date, time, timedelta
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from django.conf import settings
@@ -85,7 +84,9 @@ def set_rls_context():
 def create_clinic(db):
     """Create a Clinic instance."""
 
-    def _create(name="Test Clinic", rfc=None, status="active", email_verified=True):
+    def _create(
+        name="Test Clinic", rfc=None, status="active", email_verified=True, **kwargs
+    ):
         from clinics.models import Clinic
 
         return Clinic.objects.create(
@@ -95,6 +96,7 @@ def create_clinic(db):
             phone="+5215512345678",
             status=status,
             email_verified=email_verified,
+            **kwargs,
         )
 
     return _create
@@ -256,8 +258,6 @@ def create_schedule_slot(db, create_clinic):
 @pytest.fixture
 def create_inventory_item(db, create_clinic):
     """Create an InventoryItem instance."""
-
-    from datetime import date
 
     def _create(
         clinic=None,

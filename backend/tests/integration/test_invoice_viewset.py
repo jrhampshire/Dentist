@@ -151,6 +151,31 @@ class TestInvoiceStampFlow:
         assert response.status_code == 400
         assert "no_fiscal_config" in response.json()["error"]
 
+    def test_stamp_no_stamps_remaining_fails(
+        self,
+        create_clinic,
+        create_user,
+        create_patient,
+        create_invoice,
+        create_fiscal_config,
+        auth_headers,
+    ):
+        clinic = create_clinic(stamps_remaining=0)
+        admin = create_user(role="admin", clinic=clinic)
+        patient = create_patient(clinic=clinic)
+        invoice = create_invoice(clinic=clinic, patient=patient, status="draft")
+        create_fiscal_config(clinic=clinic)
+
+        client = APIClient()
+        client.credentials(**auth_headers(admin, clinic))
+
+        response = client.post(f"/api/v1/invoices/{invoice.pk}/stamp/")
+
+        assert response.status_code == 402
+        data = response.json()
+        assert data["error"] == "no_stamps"
+        assert data["stamps_remaining"] == 0
+
 
 @pytest.mark.integration
 @pytest.mark.django_db
