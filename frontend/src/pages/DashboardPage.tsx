@@ -232,9 +232,11 @@ export function DashboardPage() {
 									/>
 									<YAxis className="text-xs" />
 									<Tooltip
-										formatter={(value) => formatCurrency(value as number)}
-										labelFormatter={(label) =>
-											formatDate(String(label), "dd/MM/yyyy")
+										formatter={(_value: unknown, _name: string) =>
+											formatCurrency(_value as number)
+										}
+										labelFormatter={(_label: unknown) =>
+											formatDate(String(_label), "dd/MM/yyyy")
 										}
 									/>
 									<Line
@@ -280,8 +282,8 @@ export function DashboardPage() {
 									/>
 									<YAxis allowDecimals={false} className="text-xs" />
 									<Tooltip
-										labelFormatter={(label) =>
-											formatDate(String(label), "dd/MM/yyyy")
+										labelFormatter={(_label: unknown) =>
+											formatDate(String(_label), "dd/MM/yyyy")
 										}
 									/>
 									<Bar dataKey="count" fill="#4A90D9" radius={[4, 4, 0, 0]} />

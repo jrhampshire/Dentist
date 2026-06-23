@@ -21,10 +21,8 @@ from notifications.models import NotificationLog, WhatsAppWebhook
 from notifications.serializers import (
     NotificationLogSerializer,
     SendTestMessageSerializer,
-    WhatsAppWebhookSerializer,
 )
 from notifications.services.template_service import (
-    TemplateError,
     TemplateNotFoundError,
     TemplateVariableError,
     list_templates,
@@ -33,7 +31,6 @@ from notifications.services.template_service import (
 from notifications.services.twilio_service import (
     TwilioService,
     TwilioServiceError,
-    TwilioSignatureError,
 )
 
 logger = logging.getLogger("notifications.services")
@@ -117,8 +114,8 @@ class WebhookView(APIView):
 
         # Create webhook record
         webhook = WhatsAppWebhook.objects.create(
-            # clinic will be set by processing task — default to first for now
-            # In production, look up clinic by phone number mapping
+            # Resolve clinic by matching the webhook destination number
+            # against registered clinic phone numbers and fiscal config phone
             clinic_id=self._resolve_clinic(to_clean),
             from_number=from_clean,
             to_number=to_clean,
