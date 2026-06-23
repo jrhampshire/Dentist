@@ -1,174 +1,277 @@
-import { useState } from 'react'
-import { AlertCircle, ClipboardList } from 'lucide-react'
+import { useState } from "react";
+import { AlertCircle, AlertTriangle, ClipboardList } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
-  useTreatmentPlans,
-  useTreatmentPlan,
-  useCreateTreatmentPlan,
-  useUpdateTreatmentPlan,
-  useDeleteTreatmentPlan,
-  useCreateTreatmentPhase,
-  useUpdateTreatmentPhase,
-  useDeleteTreatmentPhase,
-  useCreateTreatmentProcedure,
-  useUpdateTreatmentProcedure,
-  useDeleteTreatmentProcedure,
-} from '@/hooks/useTreatmentPlans'
-import { TreatmentPlanList } from './TreatmentPlanList'
-import { TreatmentPlanDetail } from './TreatmentPlanDetail'
-import { TreatmentPlanForm } from './TreatmentPlanForm'
+	useTreatmentPlans,
+	useTreatmentPlan,
+	useCreateTreatmentPlan,
+	useUpdateTreatmentPlan,
+	useDeleteTreatmentPlan,
+	useCreateTreatmentPhase,
+	useUpdateTreatmentPhase,
+	useDeleteTreatmentPhase,
+	useCreateTreatmentProcedure,
+	useUpdateTreatmentProcedure,
+	useDeleteTreatmentProcedure,
+} from "@/hooks/useTreatmentPlans";
+import { useConsents } from "@/hooks/usePatientConsents";
+import { TreatmentPlanList } from "./TreatmentPlanList";
+import { TreatmentPlanDetail } from "./TreatmentPlanDetail";
+import { TreatmentPlanForm } from "./TreatmentPlanForm";
 
 interface TreatmentPlanTabProps {
-  patientId: string
+	patientId: string;
 }
 
 export function TreatmentPlanTab({ patientId }: TreatmentPlanTabProps) {
-  const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>(undefined)
-  const [formOpen, setFormOpen] = useState(false)
+	const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>(
+		undefined,
+	);
+	const [formOpen, setFormOpen] = useState(false);
 
-  const { data: plans, isLoading, error } = useTreatmentPlans(patientId)
-  const { data: selectedPlan } = useTreatmentPlan(
-    patientId,
-    selectedPlanId || '',
-  )
+	const { data: plans, isLoading, error } = useTreatmentPlans(patientId);
+	const { data: selectedPlan } = useTreatmentPlan(
+		patientId,
+		selectedPlanId || "",
+	);
+	const { data: consents } = useConsents(patientId);
 
-  const createPlan = useCreateTreatmentPlan()
-  const updatePlan = useUpdateTreatmentPlan()
-  const deletePlan = useDeleteTreatmentPlan()
+	// NOM-024: check for signed treatment consent
+	const hasTreatmentConsent = (consents || []).some(
+		(c) => c.consent_type === "treatment" && c.signed,
+	);
 
-  const createPhase = useCreateTreatmentPhase()
-  const updatePhase = useUpdateTreatmentPhase()
-  const deletePhase = useDeleteTreatmentPhase()
+	const createPlan = useCreateTreatmentPlan();
+	const updatePlan = useUpdateTreatmentPlan();
+	const deletePlan = useDeleteTreatmentPlan();
 
-  const createProcedure = useCreateTreatmentProcedure()
-  const updateProcedure = useUpdateTreatmentProcedure()
-  const deleteProcedure = useDeleteTreatmentProcedure()
+	const createPhase = useCreateTreatmentPhase();
+	const updatePhase = useUpdateTreatmentPhase();
+	const deletePhase = useDeleteTreatmentPhase();
 
-  const handleSelectPlan = (planId: string) => {
-    setSelectedPlanId(planId)
-  }
+	const createProcedure = useCreateTreatmentProcedure();
+	const updateProcedure = useUpdateTreatmentProcedure();
+	const deleteProcedure = useDeleteTreatmentProcedure();
 
-  const handleCreatePlan = async (data: { name: string; description?: string; status?: string }) => {
-    try {
-      const result = await createPlan.mutateAsync({ patientId, data })
-      setFormOpen(false)
-      setSelectedPlanId(result.id)
-    } catch {
-      // errors handled by React Query
-    }
-  }
+	const handleSelectPlan = (planId: string) => {
+		setSelectedPlanId(planId);
+	};
 
-  const handleUpdatePlan = async (data: { name: string; description?: string; status?: string }) => {
-    if (!selectedPlanId) return
-    await updatePlan.mutateAsync({ patientId, planId: selectedPlanId, data })
-  }
+	const handleCreatePlan = async (data: {
+		name: string;
+		description?: string;
+		status?: string;
+	}) => {
+		try {
+			const result = await createPlan.mutateAsync({ patientId, data });
+			setFormOpen(false);
+			setSelectedPlanId(result.id);
+		} catch {
+			// errors handled by React Query
+		}
+	};
 
-  const handleDeletePlan = async () => {
-    if (!selectedPlanId) return
-    await deletePlan.mutateAsync({ patientId, planId: selectedPlanId })
-    setSelectedPlanId(undefined)
-  }
+	const handleUpdatePlan = async (data: {
+		name: string;
+		description?: string;
+		status?: string;
+	}) => {
+		if (!selectedPlanId) return;
+		await updatePlan.mutateAsync({ patientId, planId: selectedPlanId, data });
+	};
 
-  const handleCreatePhase = async (data: { name: string; description?: string; order?: number; status?: string }) => {
-    if (!selectedPlanId) return
-    await createPhase.mutateAsync({ patientId, planId: selectedPlanId, data })
-  }
+	const handleDeletePlan = async () => {
+		if (!selectedPlanId) return;
+		await deletePlan.mutateAsync({ patientId, planId: selectedPlanId });
+		setSelectedPlanId(undefined);
+	};
 
-  const handleUpdatePhase = async (phaseId: string, data: { name: string; description?: string; order?: number; status?: string }) => {
-    if (!selectedPlanId) return
-    await updatePhase.mutateAsync({ patientId, planId: selectedPlanId, phaseId, data })
-  }
+	const handleCreatePhase = async (data: {
+		name: string;
+		description?: string;
+		order?: number;
+		status?: string;
+	}) => {
+		if (!selectedPlanId) return;
+		await createPhase.mutateAsync({ patientId, planId: selectedPlanId, data });
+	};
 
-  const handleDeletePhase = async (phaseId: string) => {
-    if (!selectedPlanId) return
-    await deletePhase.mutateAsync({ patientId, planId: selectedPlanId, phaseId })
-  }
+	const handleUpdatePhase = async (
+		phaseId: string,
+		data: {
+			name: string;
+			description?: string;
+			order?: number;
+			status?: string;
+		},
+	) => {
+		if (!selectedPlanId) return;
+		await updatePhase.mutateAsync({
+			patientId,
+			planId: selectedPlanId,
+			phaseId,
+			data,
+		});
+	};
 
-  const handleCreateProcedure = async (phaseId: string, data: { description: string; tooth_fdi?: number; cost?: number; status?: string; notes?: string }) => {
-    if (!selectedPlanId) return
-    await createProcedure.mutateAsync({ patientId, planId: selectedPlanId, phaseId, data })
-  }
+	const handleDeletePhase = async (phaseId: string) => {
+		if (!selectedPlanId) return;
+		await deletePhase.mutateAsync({
+			patientId,
+			planId: selectedPlanId,
+			phaseId,
+		});
+	};
 
-  const handleUpdateProcedure = async (phaseId: string, procId: string, data: { description: string; tooth_fdi?: number; cost?: number; status?: string; notes?: string }) => {
-    if (!selectedPlanId) return
-    await updateProcedure.mutateAsync({ patientId, planId: selectedPlanId, phaseId, procId, data })
-  }
+	const handleCreateProcedure = async (
+		phaseId: string,
+		data: {
+			description: string;
+			tooth_fdi?: number;
+			cost?: number;
+			status?: string;
+			notes?: string;
+		},
+	) => {
+		if (!selectedPlanId) return;
+		await createProcedure.mutateAsync({
+			patientId,
+			planId: selectedPlanId,
+			phaseId,
+			data,
+		});
+	};
 
-  const handleDeleteProcedure = async (phaseId: string, procId: string) => {
-    if (!selectedPlanId) return
-    await deleteProcedure.mutateAsync({ patientId, planId: selectedPlanId, phaseId, procId })
-  }
+	const handleUpdateProcedure = async (
+		phaseId: string,
+		procId: string,
+		data: {
+			description: string;
+			tooth_fdi?: number;
+			cost?: number;
+			status?: string;
+			notes?: string;
+		},
+	) => {
+		if (!selectedPlanId) return;
+		await updateProcedure.mutateAsync({
+			patientId,
+			planId: selectedPlanId,
+			phaseId,
+			procId,
+			data,
+		});
+	};
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    )
-  }
+	const handleDeleteProcedure = async (phaseId: string, procId: string) => {
+		if (!selectedPlanId) return;
+		await deleteProcedure.mutateAsync({
+			patientId,
+			planId: selectedPlanId,
+			phaseId,
+			procId,
+		});
+	};
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-        <AlertCircle className="h-12 w-12 mb-3 text-destructive opacity-40" />
-        <p className="text-lg font-medium text-destructive">Error al cargar los planes</p>
-        <p className="text-sm mt-2">
-          No se pudieron obtener los planes de tratamiento. Verifica la conexión e intenta de nuevo.
-        </p>
-      </div>
-    )
-  }
+	if (isLoading) {
+		return (
+			<div className="flex justify-center py-12">
+				<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+			</div>
+		);
+	}
 
-  const plansList = plans || []
+	if (error) {
+		return (
+			<div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+				<AlertCircle className="h-12 w-12 mb-3 text-destructive opacity-40" />
+				<p className="text-lg font-medium text-destructive">
+					Error al cargar los planes
+				</p>
+				<p className="text-sm mt-2">
+					No se pudieron obtener los planes de tratamiento. Verifica la conexión
+					e intenta de nuevo.
+				</p>
+			</div>
+		);
+	}
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Plan de Tratamiento</h3>
-      </div>
+	const plansList = plans || [];
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left panel — plan list */}
-        <div className="lg:col-span-1">
-          <TreatmentPlanList
-            plans={plansList}
-            selectedPlanId={selectedPlanId}
-            onSelectPlan={handleSelectPlan}
-            onCreatePlan={() => setFormOpen(true)}
-          />
-        </div>
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center justify-between">
+				<h3 className="text-lg font-semibold">Plan de Tratamiento</h3>
+			</div>
 
-        {/* Right panel — plan detail */}
-        <div className="lg:col-span-2">
-          {selectedPlanId && selectedPlan ? (
-            <TreatmentPlanDetail
-              plan={selectedPlan}
-              isUpdating={updatePlan.isPending}
-              isDeleting={deletePlan.isPending}
-              onUpdate={handleUpdatePlan}
-              onDelete={handleDeletePlan}
-              onCreatePhase={handleCreatePhase}
-              onUpdatePhase={handleUpdatePhase}
-              onDeletePhase={handleDeletePhase}
-              onCreateProcedure={handleCreateProcedure}
-              onUpdateProcedure={handleUpdateProcedure}
-              onDeleteProcedure={handleDeleteProcedure}
-            />
-          ) : plansList.length > 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 border rounded-lg bg-muted/20 text-muted-foreground">
-              <ClipboardList className="h-12 w-12 mb-3 opacity-40" />
-              <p className="text-sm">Selecciona un plan para ver sus fases y procedimientos.</p>
-            </div>
-          ) : null}
-        </div>
-      </div>
+			{/* NOM-024: consent warning */}
+			{!hasTreatmentConsent && (
+				<div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+					<AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+					<div className="flex-1">
+						<p className="font-medium">
+							Consentimiento de tratamiento requerido (NOM-024)
+						</p>
+						<p className="text-sm mt-1">
+							Este paciente no tiene un consentimiento informado de tratamiento
+							firmado. No se podrán crear procedimientos hasta que se firme.
+						</p>
+						<Link
+							to={`/patients/${patientId}?tab=consents`}
+							className="inline-block mt-2 text-sm font-medium underline hover:text-amber-900"
+						>
+							Ir a Consentimientos →
+						</Link>
+					</div>
+				</div>
+			)}
 
-      {/* Create plan dialog */}
-      <TreatmentPlanForm
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        onSubmit={handleCreatePlan}
-        isSubmitting={createPlan.isPending}
-      />
-    </div>
-  )
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+				{/* Left panel — plan list */}
+				<div className="lg:col-span-1">
+					<TreatmentPlanList
+						plans={plansList}
+						selectedPlanId={selectedPlanId}
+						onSelectPlan={handleSelectPlan}
+						onCreatePlan={() => setFormOpen(true)}
+						hasConsent={hasTreatmentConsent}
+					/>
+				</div>
+
+				{/* Right panel — plan detail */}
+				<div className="lg:col-span-2">
+					{selectedPlanId && selectedPlan ? (
+						<TreatmentPlanDetail
+							plan={selectedPlan}
+							isUpdating={updatePlan.isPending}
+							isDeleting={deletePlan.isPending}
+							onUpdate={handleUpdatePlan}
+							onDelete={handleDeletePlan}
+							onCreatePhase={handleCreatePhase}
+							onUpdatePhase={handleUpdatePhase}
+							onDeletePhase={handleDeletePhase}
+							onCreateProcedure={handleCreateProcedure}
+							onUpdateProcedure={handleUpdateProcedure}
+							onDeleteProcedure={handleDeleteProcedure}
+						/>
+					) : plansList.length > 0 ? (
+						<div className="flex flex-col items-center justify-center py-16 border rounded-lg bg-muted/20 text-muted-foreground">
+							<ClipboardList className="h-12 w-12 mb-3 opacity-40" />
+							<p className="text-sm">
+								Selecciona un plan para ver sus fases y procedimientos.
+							</p>
+						</div>
+					) : null}
+				</div>
+			</div>
+
+			{/* Create plan dialog */}
+			<TreatmentPlanForm
+				open={formOpen}
+				onClose={() => setFormOpen(false)}
+				onSubmit={handleCreatePlan}
+				isSubmitting={createPlan.isPending}
+			/>
+		</div>
+	);
 }

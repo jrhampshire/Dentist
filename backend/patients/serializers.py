@@ -14,7 +14,6 @@ Encrypted fields are automatically decrypted on read and encrypted on write.
 
 from typing import Any
 
-from django.db import transaction
 from rest_framework import serializers
 
 from patients.models import ClinicalNote, Patient, PatientConsent
@@ -353,7 +352,7 @@ class ClinicalNoteCreateSerializer(serializers.ModelSerializer):
         return value.strip()
 
     def create(self, validated_data: dict[str, Any]) -> ClinicalNote:
-        """Create clinical note with encrypted content."""
+        """Create clinical note with encrypted content and NOM-024 consent check."""
         request = self.context.get("request")
 
         # Get patient from URL kwargs
@@ -365,6 +364,13 @@ class ClinicalNoteCreateSerializer(serializers.ModelSerializer):
             patient = Patient.objects.get(id=patient_id)
         except Patient.DoesNotExist:
             raise serializers.ValidationError("Paciente no encontrado.")
+
+        # NOM-024: treatment notes require signed treatment consent
+        note_type = validated_data.get("note_type", "")
+        if note_type == ClinicalNote.NoteType.TREATMENT:
+            from patients.services.consent_service import require_treatment_consent
+
+            require_treatment_consent(patient)
 
         # Encrypt content
         validated_data["content"] = _encrypt_field(validated_data.pop("content"))

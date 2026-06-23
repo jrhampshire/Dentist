@@ -15,7 +15,7 @@ from typing import Any
 from django.db import transaction
 from rest_framework import serializers
 
-from dental_records.choices import Surface, ToothCondition
+from dental_records.choices import Surface
 from dental_records.models import (
     VALID_FDI_CODES,
     DentalRecordEntry,
@@ -27,7 +27,6 @@ from dental_records.models import (
     TreatmentPlan,
     TreatmentProcedure,
     VitalSigns,
-    validate_fdi,
 )
 from dental_records.services import generate_thumbnail
 
@@ -406,6 +405,30 @@ class VitalSignsSerializer(serializers.ModelSerializer):
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# 4b. TreatmentProcedure consent enforcement helper
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def _check_treatment_consent_for_procedure(
+    patient_id: str, context: dict[str, Any]
+) -> None:
+    """Validate that the patient has a signed treatment consent (NOM-024).
+
+    Called before creating a TreatmentProcedure. Raises ValidationError
+    if no signed treatment consent exists for the patient.
+    """
+    from patients.models import Patient
+    from patients.services.consent_service import require_treatment_consent
+
+    try:
+        patient = Patient.objects.get(id=patient_id)
+    except Patient.DoesNotExist:
+        return  # Will be caught by serializer validation
+
+    require_treatment_consent(patient)
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # 5. PatientImage Serializers
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -647,6 +670,13 @@ class TreatmentProcedureSerializer(serializers.ModelSerializer):
         if value < 0:
             raise serializers.ValidationError("El costo no puede ser negativo.")
         return value
+
+    def create(self, validated_data: dict[str, Any]) -> TreatmentProcedure:
+        """Create procedure with NOM-024 treatment consent enforcement."""
+        patient_id = self.context.get("patient_id")
+        if patient_id:
+            _check_treatment_consent_for_procedure(patient_id, self.context)
+        return super().create(validated_data)
 
 
 class TreatmentPhaseSerializer(serializers.ModelSerializer):
