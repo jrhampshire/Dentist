@@ -235,10 +235,10 @@ class OnboardingService:
         """
         Send verification email to clinic admin.
 
-        NOTE: This is a stub. In production, integrate with your email provider
-        (SendGrid, AWS SES, etc.) via Celery async task.
-
-        For now, logs the verification URL for development.
+        Dispatches the send_verification_email_task Celery task, which routes
+        the email through Django's configured email backend (see
+        settings.EMAIL_BACKEND per environment). In development the task logs
+        the verification URL for convenience.
         """
         verification_url = (
             f"{getattr(clinic, '_base_url', 'http://localhost:3000')}"

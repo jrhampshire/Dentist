@@ -516,6 +516,27 @@ def check_low_stock_alerts(self):
             )
             clinics_notified += 1
 
+        # Also notify the clinic admin by email when an address is available.
+        admin_email = clinic.settings.get("admin_email") or getattr(clinic, "email", None)
+        if admin_email:
+            email_body = (
+                f"<h2>Alerta de stock bajo — {clinic.name}</h2>"
+                f"<p>Los siguientes productos están por debajo del mínimo:</p>"
+                f"<pre>{items_list}{more_text}</pre>"
+                f"<p>Total: <strong>{low_items.count()}</strong> "
+                f"productos con stock bajo.</p>"
+            )
+            try:
+                _send_email(
+                    to_email=admin_email,
+                    subject=f"Alerta de stock bajo — {clinic.name}",
+                    html_body=email_body,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "Low stock email failed for %s: %s", clinic.name, exc
+                )
+
         total_alerts += low_items.count()
         logger.info(f"Low stock alert for {clinic.name}: {low_items.count()} items")
 
@@ -808,14 +829,24 @@ def send_verification_email_task(self, clinic_id: str, token: str):
 
 def _send_email(*, to_email: str, subject: str, html_body: str) -> bool:
     """
-    Stub for sending emails through a provider (SendGrid, AWS SES, etc.).
+    Send an email using Django's configured email backend.
 
-    Replace this with your actual email provider integration.
+    The backend is selected per environment via settings.EMAIL_BACKEND:
+    - dev/docker: console.EmailBackend (prints to console)
+    - production/staging: smtp.EmailBackend (sends via SMTP)
+    - test: locmem.EmailBackend (stores in memory)
+
+    ``from_email=None`` falls back to settings.DEFAULT_FROM_EMAIL
+    (Django's default is "webmaster@localhost").
     """
-    logger.info(
-        "EMAIL STUB (production mode):\n" "  To: %s\n" "  Subject: %s\n" "  Body: %s",
-        to_email,
-        subject,
-        html_body[:200],
+    from django.core.mail import send_mail as django_send_mail
+
+    django_send_mail(
+        subject=subject,
+        message="",
+        from_email=None,  # Uses DEFAULT_FROM_EMAIL from settings
+        recipient_list=[to_email],
+        html_message=html_body,
+        fail_silently=False,
     )
     return True
