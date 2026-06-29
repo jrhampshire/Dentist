@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { CreditCard, Stamp, CalendarDays, ShieldCheck, AlertTriangle, TrendingUp } from 'lucide-react'
 import { useClinic } from '@/hooks/useClinic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const PLAN_LABELS: Record<string, string> = {
   free: 'Starter (Gratuito)',
@@ -39,6 +41,7 @@ function formatDate(dateStr: string | null): string {
 
 export function PlanSubscriptionTab() {
   const { data: clinic, isLoading, isError, error } = useClinic()
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -48,7 +51,7 @@ export function PlanSubscriptionTab() {
             <CardContent className="p-6 space-y-4">
               <div className="h-6 w-48 bg-muted rounded animate-pulse" />
               <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-              <div className="h-10 w-full bg-muted rounded animate-pulse" />
+<div className="h-10 w-full bg-muted rounded animate-pulse" />
             </CardContent>
           </Card>
         ))}
@@ -110,7 +113,7 @@ export function PlanSubscriptionTab() {
               <p className="text-sm text-muted-foreground">{planPrice}</p>
             </div>
             {isFree && (
-              <Button className="shrink-0" size="sm">
+              <Button className="shrink-0" size="sm" onClick={() => setUpgradeDialogOpen(true)}>
                 <TrendingUp className="mr-2 h-4 w-4" />
                 Actualizar plan
               </Button>
@@ -180,6 +183,33 @@ export function PlanSubscriptionTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Upgrade plan dialog (no payment flow yet — route to support) */}
+      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Actualizar plan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Contacta a soporte para actualizar tu plan. Aún no contamos con un
+              proceso de pago en línea.
+            </p>
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">Soporte ClínicaSaaS</p>
+              <a
+                className="text-primary underline-offset-4 hover:underline"
+                href="mailto:soporte@clinicasaas.mx?subject=Actualizar%20plan"
+              >
+                soporte@clinicasaas.mx
+              </a>
+            </div>
+            <Button className="w-full" onClick={() => setUpgradeDialogOpen(false)}>
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

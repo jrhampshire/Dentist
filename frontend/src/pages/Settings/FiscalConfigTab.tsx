@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react'
+import { Save, ShieldCheck, ShieldAlert, Loader2, Upload, FileText } from 'lucide-react'
 import { useFiscalConfig, useCreateFiscalConfig, useUpdateFiscalConfig, useValidateCsd } from '@/hooks/useFiscalConfig'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -82,6 +82,15 @@ export function FiscalConfigTab() {
   const [saved, setSaved] = useState(false)
   const [validateResult, setValidateResult] = useState<{ valid: boolean; message: string } | null>(null)
 
+  // CSD upload mode: "upload" (file content) | "path" (file path string)
+  const [csdMode, setCsdMode] = useState<'upload' | 'path'>('upload')
+  // Base64-encoded file contents (from file inputs)
+  const [csdCertContent, setCsdCertContent] = useState('')
+  const [csdKeyContent, setCsdKeyContent] = useState('')
+  // Original file names (for display)
+  const [csdCertFileName, setCsdCertFileName] = useState('')
+  const [csdKeyFileName, setCsdKeyFileName] = useState('')
+
   // Initialize form when config loads
   useEffect(() => {
     if (config) {
@@ -98,6 +107,53 @@ export function FiscalConfigTab() {
     setAddressFields((prev) => ({ ...prev, [field]: value }))
   }
 
+  /**
+   * Read a File as base64 text via FileReader.
+   * Resolves with the base64 string (raw, without the data: URI prefix).
+   */
+  const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        if (typeof result !== 'string') {
+          reject(new Error('No se pudo leer el archivo'))
+          return
+        }
+        // FileReader.readAsDataURL returns "data:...;base64,AAAA" — strip the prefix.
+        const commaIndex = result.indexOf(',')
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
+  const handleCertFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const content = await readFileAsBase64(file)
+      setCsdCertContent(content)
+      setCsdCertFileName(file.name)
+    } catch {
+      setCsdCertContent('')
+      setCsdCertFileName('')
+    }
+  }
+
+  const handleKeyFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const content = await readFileAsBase64(file)
+      setCsdKeyContent(content)
+      setCsdKeyFileName(file.name)
+    } catch {
+      setCsdKeyContent('')
+      setCsdKeyFileName('')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaved(false)
@@ -106,8 +162,11 @@ export function FiscalConfigTab() {
       razon_social: razonSocial,
       regimen_fiscal: regimenFiscal,
       email: email || undefined,
-      csd_cert_path: csdCertPath || undefined,
-      csd_key_path: csdKeyPath || undefined,
+      // Path-mode sends the path strings; upload-mode sends base64 content.
+      csd_cert_path: csdMode === 'path' ? csdCertPath || undefined : undefined,
+      csd_key_path: csdMode === 'path' ? csdKeyPath || undefined : undefined,
+      csd_cert_content: csdMode === 'upload' ? csdCertContent || undefined : undefined,
+      csd_key_content: csdMode === 'upload' ? csdKeyContent || undefined : undefined,
       fiscal_address: buildAddress(addressFields),
     }
 
@@ -278,26 +337,86 @@ export function FiscalConfigTab() {
           <div className="space-y-3">
             <Label>CSD (Certificado de Sello Digital)</Label>
             <p className="text-xs text-muted-foreground">
-              Ingresa las rutas de los archivos .cer y .key del CSD. Por ahora se admiten rutas de archivo; la carga de archivos estará disponible próximamente.
+              Carga los archivos .cer y .key de tu CSD.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Ruta del archivo .cer</Label>
-                <Input
-                  value={csdCertPath}
-                  onChange={(e) => setCsdCertPath(e.target.value)}
-                  placeholder="/path/to/csd.cer"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Ruta del archivo .key</Label>
-                <Input
-                  value={csdKeyPath}
-                  onChange={(e) => setCsdKeyPath(e.target.value)}
-                  placeholder="/path/to/csd.key"
-                />
-              </div>
+
+            {/* Mode switch */}
+            <div className="inline-flex rounded-md border border-input p-0.5">
+              <button
+                type="button"
+                onClick={() => setCsdMode('upload')}
+                className={`flex items-center gap-1.5 rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
+                  csdMode === 'upload'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Upload className="h-3 w-3" />
+                Subir archivo
+              </button>
+              <button
+                type="button"
+                onClick={() => setCsdMode('path')}
+                className={`flex items-center gap-1.5 rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
+                  csdMode === 'path'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileText className="h-3 w-3" />
+                Ruta de archivo
+              </button>
             </div>
+
+            {csdMode === 'upload' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Archivo .cer</Label>
+                  <Input
+                    type="file"
+                    accept=".cer,application/x-x509-ca-cert"
+                    onChange={handleCertFileChange}
+                  />
+                  {csdCertFileName && (
+                    <p className="text-xs text-muted-foreground truncate">
+                     Archivo cargado: {csdCertFileName}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Archivo .key</Label>
+                  <Input
+                    type="file"
+                    accept=".key,application/octet-stream"
+                    onChange={handleKeyFileChange}
+                  />
+                  {csdKeyFileName && (
+                    <p className="text-xs text-muted-foreground truncate">
+                     Archivo cargado: {csdKeyFileName}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Ruta del archivo .cer</Label>
+                  <Input
+                    value={csdCertPath}
+                    onChange={(e) => setCsdCertPath(e.target.value)}
+                    placeholder="/path/to/csd.cer"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Ruta del archivo .key</Label>
+                  <Input
+                    value={csdKeyPath}
+                    onChange={(e) => setCsdKeyPath(e.target.value)}
+                    placeholder="/path/to/csd.key"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="flex items-end gap-3">
               <div className="space-y-1 flex-1">

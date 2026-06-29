@@ -1,19 +1,30 @@
-import { useState } from 'react'
-import { Calendar, Mail, MessageSquare, Plug, Loader2, Clock } from 'lucide-react'
+import { Calendar, Mail, MessageSquare, Plug, Loader2, Lock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 
 interface IntegrationCardProps {
   title: string
   description: string
   icon: React.ElementType
   isConnected: boolean
-  onConnect: () => void
   isPending: boolean
+  disabled?: boolean
+  disabledTooltip?: string
+  onConnect?: () => void
 }
 
-function IntegrationCard({ title, description, icon: Icon, isConnected, onConnect, isPending }: IntegrationCardProps) {
+function IntegrationCard({
+  title,
+  description,
+  icon: Icon,
+  isConnected,
+  isPending,
+  disabled,
+  disabledTooltip,
+  onConnect,
+}: IntegrationCardProps) {
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-6">
@@ -32,27 +43,40 @@ function IntegrationCard({ title, description, icon: Icon, isConnected, onConnec
               <p className="text-sm text-muted-foreground">{description}</p>
             </div>
           </div>
-          <Button
-            variant={isConnected ? 'outline' : 'default'}
-            size="sm"
-            onClick={onConnect}
-            disabled={isPending}
-            className="shrink-0"
-          >
-            {isPending ? (
-              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-            ) : isConnected ? (
-              <>
-                <Plug className="mr-1 h-3 w-3" />
-                Desconectar
-              </>
-            ) : (
-              <>
-                <Plug className="mr-1 h-3 w-3" />
-                Conectar
-              </>
-            )}
-          </Button>
+          {disabled ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled
+              title={disabledTooltip}
+            >
+              <Lock className="mr-1 h-3 w-3" />
+              No disponible
+            </Button>
+          ) : (
+            <Button
+              variant={isConnected ? 'outline' : 'default'}
+              size="sm"
+              onClick={onConnect}
+              disabled={isPending}
+              className="shrink-0"
+            >
+              {isPending ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : isConnected ? (
+                <>
+                  <Plug className="mr-1 h-3 w-3" />
+                  Desconectar
+                </>
+              ) : (
+                <>
+                  <Plug className="mr-1 h-3 w-3" />
+                  Conectar
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -60,17 +84,7 @@ function IntegrationCard({ title, description, icon: Icon, isConnected, onConnec
 }
 
 export function IntegrationsTab() {
-  const [pendingId, setPendingId] = useState<string | null>(null)
-
-  const handleConnect = (id: string) => {
-    setPendingId(id)
-    setTimeout(() => {
-      alert(
-        `Conectar con ${id === 'google-calendar' ? 'Google Calendar' : id === 'gmail' ? 'Gmail' : 'WhatsApp'} estará disponible en una próxima actualización.`,
-      )
-      setPendingId(null)
-    }, 400)
-  }
+  const { isConnected: whatsappConnected, isLoading: whatsappLoading } = useWhatsAppStatus()
 
   return (
     <div className="space-y-4">
@@ -86,8 +100,9 @@ export function IntegrationsTab() {
         description="Sincroniza las citas de tu clínica con Google Calendar para tener todo en un solo lugar"
         icon={Calendar}
         isConnected={false}
-        isPending={pendingId === 'google-calendar'}
-        onConnect={() => handleConnect('google-calendar')}
+        isPending={false}
+        disabled
+        disabledTooltip="Integración con Google Calendar aún no implementada"
       />
 
       <IntegrationCard
@@ -95,30 +110,24 @@ export function IntegrationsTab() {
         description="Envía correos electrónicos desde la plataforma usando tu cuenta de Gmail"
         icon={Mail}
         isConnected={false}
-        isPending={pendingId === 'gmail'}
-        onConnect={() => handleConnect('gmail')}
+        isPending={false}
+        disabled
+        disabledTooltip="Integración con Gmail aún no implementada"
       />
 
       <IntegrationCard
         title="WhatsApp"
         description="Envía recordatorios automáticos de citas y notificaciones a través de WhatsApp"
         icon={MessageSquare}
-        isConnected={false}
-        isPending={pendingId === 'whatsapp'}
-        onConnect={() => handleConnect('whatsapp')}
+        isConnected={whatsappConnected}
+        isPending={whatsappLoading}
+        disabled
+        disabledTooltip={
+          whatsappConnected
+            ? 'Conectado vía Twilio. La configuración se gestiona en el backend.'
+            : 'Conecta tus credenciales de Twilio en el backend para activar WhatsApp.'
+        }
       />
-
-      <Card className="bg-muted/30">
-        <CardContent className="py-4 text-center">
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>
-              Las integraciones con servicios externos estarán disponibles en una próxima actualización.
-              Esta sección es actualmente una vista previa del diseño.
-            </span>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
