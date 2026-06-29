@@ -232,6 +232,10 @@ export interface FiscalConfig {
   fiscal_address: Record<string, unknown>
   csd_cert_path: string
   csd_key_path: string
+  /** Base64-encoded .cer content (used when uploading files instead of paths). */
+  csd_cert_content?: string
+  /** Base64-encoded .key content (used when uploading files instead of paths). */
+  csd_key_content?: string
   email: string
   is_validated: boolean
 }

@@ -17,12 +17,11 @@ export const authApi = {
   me: () =>
     apiClient.get<User>('/auth/me/').then((r) => r.data),
 
-  // OAuth login (Google/Apple)
-  oauth: (provider: 'google' | 'apple', code: string, codeVerifier: string) =>
+  // OAuth login (Google/Apple) — backend expects { id_token }
+  oauth: (provider: 'google' | 'apple', idToken: string) =>
     apiClient
       .post<AuthTokens>(`/auth/oauth/${provider}/`, {
-        code,
-        code_verifier: codeVerifier,
+        id_token: idToken,
       })
       .then((r) => r.data),
 

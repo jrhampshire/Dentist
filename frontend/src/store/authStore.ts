@@ -13,6 +13,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: { email: string; password: string }) => Promise<void>
+  oauthLogin: (provider: 'google' | 'apple', idToken: string) => Promise<void>
   register: (credentials: RegisterCredentials) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
@@ -47,6 +48,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Error al iniciar sesión',
+      })
+      throw error
+    }
+  },
+
+  oauthLogin: async (provider, idToken) => {
+    set({ isLoading: true, error: null })
+    try {
+      const tokens: AuthTokens = await authApi.oauth(provider, idToken)
+
+      localStorage.setItem('access_token', tokens.access_token)
+      localStorage.setItem('refresh_token', tokens.refresh_token)
+
+      set({
+        user: tokens.user,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        isAuthenticated: true,
+        isLoading: false,
+      })
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Error al iniciar sesión con OAuth',
       })
       throw error
     }
