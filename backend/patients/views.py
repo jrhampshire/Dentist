@@ -493,13 +493,20 @@ class AuditTrailViewSet(
     Uses cursor-based pagination (default: 20 per page).
 
     Permission: authenticated users only.
+
+    Role-based scoping:
+    - Admins: see all clinic audit entries (RLS enforces clinic isolation).
+    - Dentists: restricted to audit entries about their own patients — i.e.
+      patients they created (`created_by`) or treat (have an appointment with
+      them as the `dentist`) — plus the appointments/notes/consents tied to
+      those patients.
     """
 
     permission_classes = [IsAuthenticated]
     serializer_class = AuditLogSerializer
 
     def get_queryset(self):
-        """Return audit log entries filtered by query params."""
+        """Return audit log entries filtered by query params and role."""
         qs = AuditLog.objects.select_related("user").order_by("-created_at")
         resource_type = self.request.query_params.get("resource_type")
         resource_id = self.request.query_params.get("resource_id")
@@ -508,5 +515,46 @@ class AuditTrailViewSet(
             qs = qs.filter(resource_type=resource_type)
         if resource_id:
             qs = qs.filter(resource_id=resource_id)
+
+        # ── Role-based scoping ──────────────────────────────────────────
+        user_role = getattr(self.request, "user_role", None)
+
+        # Admins see the full clinic audit trail (RLS handles tenant isolation).
+        if user_role == "admin":
+            return qs
+
+        # Dentists only see audit entries about their own patients.
+        if user_role == "dentista":
+            from django.db.models import Q
+
+            from appointments.models import Appointment
+
+            user = self.request.user
+
+            # Patients this dentist owns (created) or treats (has appointments
+            # with). Uses subqueries so the IN clauses stay cheap.
+            patient_ids = (
+                Patient.objects.filter(
+                    Q(created_by=user) | Q(appointments__dentist=user)
+                )
+                .values_list("id", flat=True)
+                .distinct()
+            )
+            appointment_ids = Appointment.objects.filter(dentist=user).values_list(
+                "id", flat=True
+            )
+            note_ids = ClinicalNote.objects.filter(
+                patient_id__in=patient_ids
+            ).values_list("id", flat=True)
+            consent_ids = PatientConsent.objects.filter(
+                patient_id__in=patient_ids
+            ).values_list("id", flat=True)
+
+            qs = qs.filter(
+                Q(resource_type="Patient", resource_id__in=patient_ids)
+                | Q(resource_type="Appointment", resource_id__in=appointment_ids)
+                | Q(resource_type="Clinical Note", resource_id__in=note_ids)
+                | Q(resource_type="Patient Consent", resource_id__in=consent_ids)
+            )
 
         return qs

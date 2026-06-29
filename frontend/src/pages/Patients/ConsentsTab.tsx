@@ -9,8 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CONSENT_TYPE_LABELS, type ConsentType } from '@/types'
+import { CONSENT_TYPE_LABELS, type ConsentType, type PatientConsent } from '@/types'
 import { formatDateTime } from '@/lib/utils'
+import SignaturePad from '@/components/SignaturePad'
 
 interface ConsentsTabProps {
   patientId: string
@@ -21,6 +22,8 @@ export function ConsentsTab({ patientId }: ConsentsTabProps) {
   const [newConsentType, setNewConsentType] = useState<ConsentType>('general')
   const [newContent, setNewContent] = useState('')
   const [newVersion, setNewVersion] = useState('1.0')
+  const [signDialogOpen, setSignDialogOpen] = useState(false)
+  const [signingConsent, setSigningConsent] = useState<PatientConsent | null>(null)
   const [signingConsentId, setSigningConsentId] = useState<string | null>(null)
 
   const { data: consents, isLoading } = useConsents(patientId)
@@ -41,10 +44,26 @@ export function ConsentsTab({ patientId }: ConsentsTabProps) {
     setNewVersion('1.0')
   }
 
-  const handleSign = async (consentId: string) => {
-    setSigningConsentId(consentId)
+  const openSignDialog = (consent: PatientConsent) => {
+    setSigningConsent(consent)
+    setSignDialogOpen(true)
+  }
+
+  const closeSignDialog = () => {
+    setSignDialogOpen(false)
+    setSigningConsent(null)
+  }
+
+  const handleSignatureSave = async (signatureDataUrl: string) => {
+    if (!signingConsent) return
+    setSigningConsentId(signingConsent.id)
     try {
-      await signConsent.mutateAsync({ patientId, consentId })
+      await signConsent.mutateAsync({
+        patientId,
+        consentId: signingConsent.id,
+        signatureBlob: signatureDataUrl,
+      })
+      closeSignDialog()
     } finally {
       setSigningConsentId(null)
     }
@@ -128,7 +147,7 @@ export function ConsentsTab({ patientId }: ConsentsTabProps) {
                           variant="outline"
                           size="sm"
                           disabled={signingConsentId === consent.id}
-                          onClick={() => handleSign(consent.id)}
+                          onClick={() => openSignDialog(consent)}
                         >
                           {signingConsentId === consent.id ? (
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -195,6 +214,32 @@ export function ConsentsTab({ patientId }: ConsentsTabProps) {
               {createConsent.isPending ? 'Creando...' : 'Crear consentimiento'}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sign Consent Dialog */}
+      <Dialog
+        open={signDialogOpen}
+        onOpenChange={(open) => (open ? setSignDialogOpen(true) : closeSignDialog())}
+      >
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Firmar consentimiento</DialogTitle>
+          </DialogHeader>
+          {signingConsent && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {getTypeBadge(signingConsent.consent_type)}
+                  <span className="text-sm text-muted-foreground">v{signingConsent.version}</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-sm">
+                  {signingConsent.content}
+                </div>
+              </div>
+              <SignaturePad onSave={handleSignatureSave} onCancel={closeSignDialog} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
