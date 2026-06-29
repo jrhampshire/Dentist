@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Plus, ChevronLeft, ChevronRight, CheckCircle, MessageCircle } from 'lucide-react'
-import { useAppointments, useCreateAppointment, useCompleteAppointment, useAvailableSlots, useAppointmentTypes } from '@/hooks/useAppointments'
+import { Plus, ChevronLeft, ChevronRight, CheckCircle, MessageCircle, CalendarClock } from 'lucide-react'
+import { useAppointments, useCreateAppointment, useCompleteAppointment, useRescheduleAppointment, useAvailableSlots, useAppointmentTypes } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,15 +27,21 @@ export function AppointmentsPage() {
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [completeError, setCompleteError] = useState<ApiError | null>(null)
 
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduleTime, setRescheduleTime] = useState('')
+  const [rescheduleError, setRescheduleError] = useState<ApiError | null>(null)
+
   const { data: appointmentsData } = useAppointments()
   const { data: patients } = usePatients({ page: 1 })
   const { data: appointmentTypes } = useAppointmentTypes()
   const { data: availableSlots } = useAvailableSlots({
     date: selectedDate,
-    dentist: selectedDentist || undefined,
+    dentist_id: selectedDentist || undefined,
   })
   const createAppointment = useCreateAppointment()
   const completeAppointment = useCompleteAppointment()
+  const rescheduleAppointment = useRescheduleAppointment()
 
   const [formData, setFormData] = useState({
     patient: '',
@@ -118,6 +124,41 @@ export function AppointmentsPage() {
       setDetailAppointment(null)
     } catch (err) {
       setCompleteError(err as ApiError)
+    }
+  }
+
+  // Available slots for the reschedule dialog (driven by the picked date +
+  // the appointment's dentist).
+  const { data: rescheduleSlots } = useAvailableSlots({
+    date: rescheduleDate,
+    dentist_id: detailAppointment?.dentist || undefined,
+  })
+
+  const canReschedule = (appt: Appointment) => appt.status !== 'completed'
+
+  const handleRescheduleClick = (appt: Appointment) => {
+    setDetailAppointment(appt)
+    setRescheduleDate(appt.date)
+    setRescheduleTime(appt.start_time)
+    setRescheduleError(null)
+    setRescheduleOpen(true)
+  }
+
+  const handleRescheduleConfirm = async () => {
+    if (!detailAppointment) return
+    if (!rescheduleDate || !rescheduleTime) {
+      setRescheduleError({ message: 'Selecciona una fecha y hora.' } as ApiError)
+      return
+    }
+    try {
+      await rescheduleAppointment.mutateAsync({
+        id: detailAppointment.id,
+        data: { date: rescheduleDate, start_time: rescheduleTime },
+      })
+      setRescheduleOpen(false)
+      setDetailAppointment(null)
+    } catch (err) {
+      setRescheduleError(err as ApiError)
     }
   }
 
@@ -281,16 +322,16 @@ export function AppointmentsPage() {
             <CardTitle>Horarios disponibles — {formatDate(selectedDate)}</CardTitle>
           </CardHeader>
           <CardContent>
-            {availableSlots?.length === 0 ? (
+            {!availableSlots || availableSlots.total_available === 0 ? (
               <p className="text-sm text-muted-foreground">No hay horarios disponibles</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {availableSlots?.map((slot, idx) => (
+                {availableSlots.slots.map((slot, idx) => (
                   <Button
                     key={idx}
                     variant="outline"
                     size="sm"
-                    onClick={() => setFormData({ ...formData, date: slot.date, start_time: slot.start_time })}
+                    onClick={() => setFormData({ ...formData, date: availableSlots.date, start_time: slot.start_time })}
                   >
                     {formatTime(slot.start_time)}
                   </Button>
@@ -375,6 +416,16 @@ export function AppointmentsPage() {
                   Completar cita
                 </Button>
               )}
+              {canReschedule(detailAppointment) && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleRescheduleClick(detailAppointment)}
+                >
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Reagendar cita
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>
@@ -415,6 +466,83 @@ export function AppointmentsPage() {
               </Button>
               <Button className="flex-1" onClick={handleCompleteConfirm} disabled={completeAppointment.isPending}>
                 {completeAppointment.isPending ? 'Completando...' : 'Confirmar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reagendar cita</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {detailAppointment && (
+              <p className="text-sm text-muted-foreground">
+                {detailAppointment.patient_name} — {detailAppointment.type_name}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="reschedule-date">Nueva fecha</Label>
+              <Input
+                id="reschedule-date"
+                type="date"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reschedule-time">Nueva hora</Label>
+              <Input
+                id="reschedule-time"
+                type="time"
+                value={rescheduleTime}
+                onChange={(e) => setRescheduleTime(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Available slot quick-picks for the selected date */}
+            {rescheduleDate && rescheduleSlots && rescheduleSlots.total_available > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Horarios disponibles</Label>
+                <div className="flex flex-wrap gap-2">
+                  {rescheduleSlots.slots.map((slot, idx) => (
+                    <Button
+                      key={idx}
+                      type="button"
+                      variant={rescheduleTime === slot.start_time ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setRescheduleTime(slot.start_time)}
+                    >
+                      {formatTime(slot.start_time)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rescheduleError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-800">
+                  {rescheduleError.message || 'No se pudo reagendar la cita.'}
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setRescheduleOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleRescheduleConfirm}
+                disabled={rescheduleAppointment.isPending || !rescheduleDate || !rescheduleTime}
+              >
+                {rescheduleAppointment.isPending ? 'Reagendando...' : 'Confirmar reagendado'}
               </Button>
             </div>
           </div>

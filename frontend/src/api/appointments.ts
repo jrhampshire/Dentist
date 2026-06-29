@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Appointment, AppointmentType, ScheduleSlot, AvailableSlot, PaginatedResponse } from '@/types'
+import type { Appointment, AppointmentType, ScheduleSlot, PaginatedResponse } from '@/types'
 
 export const appointmentsApi = {
   // CRUD Appointments
@@ -19,8 +19,15 @@ export const appointmentsApi = {
     apiClient.delete(`/appointments/${id}/`).then((r) => r.data),
 
   // Available slots
-  getAvailableSlots: (params: { date: string; dentist?: string; type?: string }) =>
-    apiClient.get<AvailableSlot[]>('/appointments/available-slots/', { params }).then((r) => r.data),
+  // NOTE: the backend reads `dentist_id` (not `dentist`); map it here so the
+  // query param name matches the AppointmentViewSet.available_slots action.
+  getAvailableSlots: (params: { date: string; dentist_id?: string; duration?: number }) =>
+    apiClient
+      .get<{ date: string; dentist_id: string; duration_minutes: number; slots: { start_time: string; end_time: string }[]; total_available: number }>(
+        '/appointments/available-slots/',
+        { params: { date: params.date, dentist_id: params.dentist_id, duration: params.duration } },
+      )
+      .then((r) => r.data),
 
   // Appointment Types
   listTypes: () =>
@@ -51,4 +58,8 @@ export const appointmentsApi = {
   // Complete appointment (inventory kit consumption)
   complete: (id: string) =>
     apiClient.post<Appointment>(`/appointments/${id}/complete/`).then((r) => r.data),
+
+  // Reschedule appointment (new date + start_time; re-arms reminders)
+  reschedule: (id: string, data: { date: string; start_time: string }) =>
+    apiClient.post<Appointment>(`/appointments/${id}/reschedule/`, data).then((r) => r.data),
 }

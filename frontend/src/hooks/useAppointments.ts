@@ -49,11 +49,11 @@ export function useDeleteAppointment() {
 }
 
 // Available Slots
-export function useAvailableSlots(params: { date: string; dentist?: string; type?: string }) {
+export function useAvailableSlots(params: { date: string; dentist_id?: string; duration?: number }) {
   return useQuery({
     queryKey: ['available-slots', params],
     queryFn: () => appointmentsApi.getAvailableSlots(params),
-    enabled: !!params.date,
+    enabled: !!params.date && !!params.dentist_id,
   })
 }
 
@@ -140,6 +140,19 @@ export function useCompleteAppointment() {
     mutationFn: (id: string) => appointmentsApi.complete(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['appointment', id] })
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+    },
+  })
+}
+
+// Reschedule Appointment (new date + start_time)
+export function useRescheduleAppointment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { date: string; start_time: string } }) =>
+      appointmentsApi.reschedule(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['appointment', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['appointments'] })
     },
   })

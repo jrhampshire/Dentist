@@ -382,6 +382,143 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=["post"])
+    def reschedule(self, request, pk=None):
+        """
+        Reschedule an appointment to a new date/time.
+
+        POST /api/v1/appointments/{id}/reschedule/
+        Body: { "date": "YYYY-MM-DD", "start_time": "HH:MM" }
+
+        - Moves the appointment back to 'scheduled' status (re-arms reminders).
+        - Recalculates end_time from the appointment type duration.
+        - Detects conflicts with other active appointments for the same dentist,
+          excluding the appointment being rescheduled.
+        - Resets whatsapp_sent / whatsapp_response so a fresh reminder is
+          dispatched for the new slot (the post_save signal also resets
+          whatsapp_sent when reviving a cancelled appointment).
+
+        Cannot reschedule a completed appointment.
+        """
+        from datetime import datetime, time, timedelta
+
+        from django.db.models import Q
+
+        appointment = self.get_object()
+
+        if appointment.status == Appointment.Status.COMPLETED:
+            return Response(
+                {
+                    "error": "cannot_reschedule",
+                    "message": "No se puede reagendar una cita completada.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_date_str = request.data.get("date")
+        new_start_time_str = request.data.get("start_time")
+
+        if not new_date_str or not new_start_time_str:
+            return Response(
+                {
+                    "error": "missing_fields",
+                    "message": "Los campos 'date' y 'start_time' son obligatorios.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            new_date = date.fromisoformat(new_date_str)
+        except (ValueError, TypeError):
+            return Response(
+                {
+                    "error": "invalid_date",
+                    "message": "Formato de fecha inválido. Use YYYY-MM-DD.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            new_start_time = time.fromisoformat(new_start_time_str)
+        except (ValueError, TypeError):
+            return Response(
+                {
+                    "error": "invalid_time",
+                    "message": "Formato de hora inválido. Use HH:MM.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Do not allow moving to a past date
+        if new_date < date.today():
+            return Response(
+                {
+                    "error": "past_date",
+                    "message": "No se puede reagendar a una fecha pasada.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Recompute end_time from the appointment type duration
+        appt_type = appointment.appointment_type
+        start_dt = datetime.combine(new_date, new_start_time)
+        end_dt = start_dt + timedelta(minutes=appt_type.duration_minutes)
+        new_end_time = end_dt.time()
+
+        # Conflict detection excluding this appointment itself.
+        # An overlap exists if: existing.start < new.end AND existing.end > new.start
+        conflict = (
+            Appointment.objects.filter(
+                dentist_id=appointment.dentist_id,
+                date=new_date,
+                status__in=["scheduled", "confirmed", "in_progress"],
+            )
+            .exclude(id=appointment.id)
+            .filter(Q(start_time__lt=new_end_time) & Q(end_time__gt=new_start_time))
+            .exists()
+        )
+
+        if conflict:
+            return Response(
+                {
+                    "error": "time_slot_conflict",
+                    "message": "El dentista ya tiene una cita en ese horario.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        with transaction.atomic():
+            appointment.date = new_date
+            appointment.start_time = new_start_time
+            appointment.end_time = new_end_time
+            # Re-arm reminders by moving back to scheduled and clearing flags
+            appointment.status = Appointment.Status.SCHEDULED
+            appointment.whatsapp_sent = False
+            appointment.whatsapp_sent_at = None
+            appointment.whatsapp_response = ""
+            # Clear stale cancellation data when reviving a cancelled appointment
+            appointment.cancellation_reason = ""
+            appointment.cancelled_by = None
+            appointment.cancelled_at = None
+            appointment.save(
+                update_fields=[
+                    "date",
+                    "start_time",
+                    "end_time",
+                    "status",
+                    "whatsapp_sent",
+                    "whatsapp_sent_at",
+                    "whatsapp_response",
+                    "cancellation_reason",
+                    "cancelled_by",
+                    "cancelled_at",
+                    "updated_at",
+                ]
+            )
+
+        serializer = self.get_serializer(appointment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def perform_destroy(self, instance):
         """Soft cancel — set status to cancelled instead of deleting."""
         user = self.request.user
