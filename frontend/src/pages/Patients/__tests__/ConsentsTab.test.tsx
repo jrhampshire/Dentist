@@ -128,7 +128,7 @@ describe('ConsentsTab', () => {
     })
   })
 
-  it('calls sign mutation when Firmar button clicked', async () => {
+  it('opens sign dialog when Firmar button clicked', async () => {
     setupQuery([mockConsent({ id: 'consent-5', signed: false })])
     const mockSign = vi.fn().mockResolvedValue({})
     useCreateConsent.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
@@ -142,11 +142,11 @@ describe('ConsentsTab', () => {
 
     fireEvent.click(screen.getByText('Firmar'))
 
+    // After clicking "Firmar", the signature dialog opens with a SignaturePad.
     await waitFor(() => {
-      expect(mockSign).toHaveBeenCalledWith({
-        patientId: 'patient-1',
-        consentId: 'consent-5',
-      })
+      expect(screen.getByText('Firmar consentimiento')).toBeInTheDocument()
+      expect(screen.getByText('Firma aquí')).toBeInTheDocument()
+      expect(screen.getByText('Guardar firma')).toBeInTheDocument()
     })
   })
 

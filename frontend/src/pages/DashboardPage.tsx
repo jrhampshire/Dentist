@@ -232,9 +232,9 @@ export function DashboardPage() {
 									/>
 									<YAxis className="text-xs" />
 									<Tooltip
-										formatter={(_value: unknown, _name: string) =>
-											formatCurrency(_value as number)
-										}
+									formatter={(_value: unknown) =>
+										formatCurrency(_value as number)
+									}
 										labelFormatter={(_label: unknown) =>
 											formatDate(String(_label), "dd/MM/yyyy")
 										}

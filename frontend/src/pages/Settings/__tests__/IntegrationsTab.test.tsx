@@ -16,7 +16,8 @@ describe('IntegrationsTab', () => {
     render(<IntegrationsTab />)
 
     expect(screen.getByText('WhatsApp')).toBeInTheDocument()
-    expect(screen.getByText('Desconectado')).toBeInTheDocument()
+    // Multiple cards show "Desconectado" badges — at least one must exist.
+    expect(screen.getAllByText('Desconectado').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders Google Calendar and Gmail cards as not available', () => {

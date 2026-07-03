@@ -12,7 +12,7 @@ import type { NotificationLog } from '@/types'
  * WhatsApp is treated as disconnected.
  */
 export function useWhatsAppStatus() {
-  return useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['whatsapp-status'],
     queryFn: async () => {
       const data = await notificationsApi.list({ channel: 'whatsapp' })
@@ -33,6 +33,11 @@ export function useWhatsAppStatus() {
     },
     staleTime: 60_000,
   })
+
+  return {
+    isConnected: data?.isConnected ?? false,
+    isLoading,
+  }
 }
 
 interface PaginatedResponse<T> {

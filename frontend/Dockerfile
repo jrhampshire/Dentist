@@ -26,8 +26,8 @@ ARG VITE_WS_URL
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_WS_URL=${VITE_WS_URL}
 
-# Build the application (vite build only — tsc -b has pre-existing errors from dep updates)
-RUN npx vite build
+# Type-check and build the application
+RUN npx tsc -b --noEmit && npx vite build
 
 # ---------------------------------------------------------------------------
 # Stage 2: Serve with nginx
